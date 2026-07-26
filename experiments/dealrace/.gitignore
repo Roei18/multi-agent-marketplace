@@ -1,0 +1,7 @@
+# Run artifacts: every tournament writes timestamped JSON here. Reproduce with
+# run.py. Ignored by default -- except the one 10-seller A/B pair and its
+# comparison report, kept as the reference result (see README "What comes out").
+results/*
+!results/attributor_s0_20260726_105745.json
+!results/baseline_s0_20260726_110048.json
+!results/compare_base_vs_attributor.md
