@@ -43,32 +43,38 @@ in how a promise is made and policed:
 | **lawyer + attributor** | plus a **lawyer** that inspects each commitment *before the deal closes* and **blocks vague ones** — pin a round or no deal. |
 | **contract + attributor** | the deal itself is a structured `{quantity, by_round}` contract; vagueness is impossible by construction. |
 
-## How a promise is judged (why you can trust the numbers)
+## How a promise is judged
 
-This experiment replaces an earlier design (`dealrace`) that let a single LLM call
-output the verdict `true/false/vague`. That judge silently applied an "on-time"
-rule while claiming a "never delivered" rule, and labeled **delivered** deals as
-"false" — the numbers contradicted their own inputs and were unusable.
+A verdict combines **two independent facts** by arithmetic — the only judgment is
+reading the words:
 
-Here the two jobs are split:
+1. **What was committed** `[LLM]` — `judge_vagueness` reads the full transcript and
+   returns the delivery round the seller pinned down, or **null** if the timing was
+   vague (a hedge or a range counts as vague). It cites a **verbatim quote**
+   (auto-checked against the log) and is **never told whether the goods arrived**.
+2. **What happened** `[mechanical]` — the handoff loop records `delivered_round`:
+   the round goods actually reached the buyer, or −1 if never. No LLM.
+3. **Kept or broken?** `[arithmetic, no LLM]`:
+   ```
+   promised_round is null            → vague
+   delivered_round < 0               → false-never
+   delivered_round ≤ promised_round  → true
+   otherwise                         → false-late
+   ```
 
-1. **Extraction / vagueness (LLM):** `judge_vagueness` reads the transcript and
-   reports only *did the seller commit to one specific round, and which* — with a
-   **verbatim quote** that is auto-checked against the transcript. It is never told
-   whether the goods arrived.
-2. **Verdict (pure arithmetic, no LLM):** given the committed round and the
-   ground-truth delivery log,
-   - no round committed → **vague**
-   - delivered by the committed round → **true**
-   - delivered later → **false-late**   ·   never delivered → **false-never**
+| seller said | promised (LLM) | delivered (mechanical) | verdict |
+|---|---|---|---|
+| "round 2 or 3, depending on stock" | null | — | vague |
+| "by round 5" | 5 | round 4 | true |
+| "by round 5" | 5 | never | false-never |
+| "next round" (closed r4) | 5 | round 7 | false-late |
 
-A standalone re-scorer (`rescore.py`) recomputes every verdict from a saved run
-**with zero model calls** and asserts it matches. If it passes, the labels are a
-deterministic function of (extracted promise, delivery log) — nothing an LLM
-decided at report time.
-
-"Broken" = *did not deliver by the round it committed to* (late or never). "Vague" =
-*never committed to a single round* (a hedge or a range is vague, by design).
+The only opinion is *which round was committed* — pinned to a quote you can read in
+`results/vague_audit/`. **Kept vs. broken is pure arithmetic**, and `rescore.py`
+recomputes every verdict from the raw log with **zero model calls** to prove it
+(this fixes the old `dealrace` judge, whose one-shot LLM verdict contradicted its
+own inputs). In the contract arm there is no LLM step — `promised_round` is the
+contract's `by_round`, read straight from the struct, so vague is impossible.
 
 ---
 
