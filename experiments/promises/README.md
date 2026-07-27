@@ -78,35 +78,48 @@ contract's `by_round`, read straight from the struct, so vague is impossible.
 
 ---
 
-## Results (8 sellers × 16 buyers × 12 rounds, seed 0)
+## Results (8 sellers × 16 buyers × 12 rounds, seeds 0 and 1)
 
-65 deals per free-text arm; supply identical across arms (135 units drawn);
-determinism verified on all four.
+~65 deals per free-text arm per seed; supply identical across arms *within* a seed
+(135 units drawn at seed 0, 149 at seed 1); determinism verified on all eight runs.
+Each cell is **seed 0 / seed 1**.
 
-### Promise distribution (share of deals — supply-independent)
+### Promise distribution + welfare (supply-independent)
 
-| | baseline | attributor | lawyer+attr | contract+attr |
+| metric (seed 0 / seed 1) | baseline | attributor | lawyer+attr | contract+attr |
 |---|---|---|---|---|
-| **vague** | 78% | **88%** | 5% | 0% |
-| true (on-time) | 14% | 11% | **79%** | 27% |
-| false (late+never) | 8% | 2% | 16% | **73%** |
-| kept-of-concrete* | 64% | 88% | 83% | 27% |
+| **vague %** | 78 / 81 | **88 / 84** | 5 / 6 | 0 / 0 |
+| true (on-time) % | 14 / 19 | 11 / 15 | **79 / 84** | 27 / 49 |
+| false % | 8 / 0 | 2 / 1 | 16 / 9 | **73 / 51** |
+| kept-of-concrete %* | 64 / 100 | 88 / 91 | 83 / 90 | 27 / 49 |
+| **true deals (welfare)** | 9 / 13 | 7 / 10 | **49 / 54** | 16 / 36 |
+| seller-winner profit (net deals) | 15 / 15 | 17 / 18 | 11 / 14 | 5 / 7 |
+| buyer-champion profit (goods) | 5 / 5 | 5 / 5 | 4 / 4 | 9 / 10 |
 
-\*of the sellers who *did* commit to a round, the share who kept it (supply-independent honesty).
+\*share of *concrete* promises kept on time; noisy in free-text arms (few concrete deals → small denominator).
 
-### Equilibrium — what the market converged to
+### Equilibrium — what the market converged to (seed 0)
 
 | | baseline | attributor | lawyer+attr | contract+attr |
 |---|---|---|---|---|
 | vagueness, early→late third | 95%→65% | 96%→78% | 0→11% | 0→0 |
 | truthfulness, early→late | 5%→25% | 4%→22% | 81%→84% | 29%→23% |
 | **return-to-deliverer**, early→late | 5%→25% | 0→**39%** | 4%→35% | 0→9% |
-| **true deals (welfare)** | 9 | 7 | **49** | 16 |
-| seller-winner profit (net deals) | 15 | 17 | 11 | 5 |
-| buyer-champion profit (goods) | 5 | 5 | 4 | 9 |
 
-> One seed — read these as **direction, not effect size**. A seed sweep is the next
-> step to put error bars on the deltas.
+### What replicated across the two seeds
+
+- **Robust:** only the **lawyer** produces honesty (79–84% true, welfare winner at
+  49–54 honest deals ≈ 5× every other arm); free-text arms stay overwhelmingly
+  **vague** (78–88%); the contract removes vagueness by design but carries the
+  **highest breach** (51–73%); winner profits are stable.
+- **Direction holds, size noisy:** the **dodge** — attributor *more* vague than
+  baseline — appears in both seeds (78<88, 81<84) but the gap shrank (+10 → +3 pts):
+  a small effect on an already-high baseline.
+- **Too noisy to claim:** kept-of-concrete (tiny concrete-deal denominators) and the
+  contract true/false split (tracks that seed's supply).
+
+> **Two seeds — direction, not effect size.** A 3–5 seed sweep is needed to put error
+> bars on the deltas, especially the dodge.
 
 ---
 
