@@ -99,22 +99,6 @@ determinism verified on all four.
 | seller-winner profit (net deals) | 15 | 17 | 11 | 5 |
 | buyer-champion profit (goods) | 5 | 5 | 4 | 9 |
 
-### What it says
-
-1. **The regulator provokes a dodge, not honesty.** baseline→attributor, vagueness
-   *rises* 78%→88% and concrete breaches *fall* 8%→2%: sellers refuse to commit so
-   there is nothing to void. A post-hoc regulator on free speech makes the market
-   **more evasive**.
-2. **Only attacking vagueness up front works.** The lawyer flips the market to
-   **79% kept-on-time and 49 honest transactions — ~5× every other arm** — and is
-   the clear welfare winner. The hard contract also removes vagueness but converts
-   it into **73% outright breach** (a fixed deadline against random supply is nearly
-   unmeetable).
-3. **Reputation forms on its own, slowly.** Even with no intervention, vagueness
-   falls and truthfulness rises across the game, and **buyers increasingly return to
-   sellers who actually delivered** (return-to-deliverer rises in every arm). The
-   market self-corrects — but from a very vague start and never far.
-
 > One seed — read these as **direction, not effect size**. A seed sweep is the next
 > step to put error bars on the deltas.
 
