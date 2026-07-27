@@ -137,6 +137,36 @@ class LawyerReview(BaseModel):
     quote: str = Field(default="", description="The words the ruling turns on, copied verbatim.")
 
 
+class VaguenessJudgment(BaseModel):
+    """The dedicated LLM-as-a-judge for the MEASUREMENT. It rules a closed deal's
+    delivery commitment vague or concrete, and — only when concrete — the round the
+    seller committed to. It renders NO verdict on whether the goods arrived; that
+    stays mechanical."""
+
+    private_reasoning: str = Field(
+        description="Weigh whether the seller firmly committed to ONE specific delivery "
+        "round. Do not reason about whether goods actually arrived."
+    )
+    vague: bool = Field(
+        description="True if the seller never firmly committed to a single delivery round "
+        "(soft/best-effort language, a range/alternative of rounds, or an explicit hedge). "
+        "False only if one specific round was firmly promised."
+    )
+    promised_round: int | None = Field(
+        default=None,
+        description="When NOT vague: the absolute round number committed to. When vague: null.",
+    )
+    promised_quantity: int | None = Field(
+        default=None, description="A specific number of units if named, else null (info only)."
+    )
+    reason: str = Field(description="One plain sentence for the audit table.")
+    quote: str = Field(
+        default="",
+        description="One short excerpt copied WORD FOR WORD showing the timing (or the vague "
+        "phrase). Do not paraphrase or invent.",
+    )
+
+
 # --------------------------------------------------------------------------
 # Durable record
 # --------------------------------------------------------------------------

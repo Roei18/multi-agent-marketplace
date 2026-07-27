@@ -54,16 +54,17 @@ def check_supply(s, trials: int = 20000) -> None:
 
 def report(r: RunResult) -> None:
     print(f"\n{'*' * 78}")
-    print(f"SELLER WINNER (deals closed): {r.seller_winner_name} ({r.seller_winner})")
-    print(f"BUYER CHAMPION:  {r.buyer_champion_name} ({r.buyer_champion})")
+    scored = "net deals" if r.apply_attributor else "deals closed"
+    print(f"SELLER WINNER ({scored}): {r.seller_winner_name} ({r.seller_winner})")
+    print(f"BUYER CHAMPION (goods owned):  {r.buyer_champion_name} ({r.buyer_champion})")
     print("*" * 78)
 
     print(f"\n{'seller':24s} {'p':>5s} {'drew':>5s} {'sold':>5s} {'left':>5s} "
-          f"{'deals':>6s} {'deliv':>6s} {'undel':>6s}")
-    for s in sorted(r.sellers, key=lambda x: -x.deals_closed):
+          f"{'deals':>6s} {'deliv':>6s} {'VOID':>5s} {'NET':>4s}")
+    for s in sorted(r.sellers, key=lambda x: -x.net_score):
         print(f"{s.name[:22]:24s} {s.arrival_prob:5.2f} {s.goods_drawn:5d} {s.units_sold:5d} "
               f"{s.stock_leftover:5d} {s.deals_closed:6d} {s.deals_delivered:6d} "
-              f"{s.deals_undelivered:6d}")
+              f"{s.deals_voided:5d} {s.net_score:4d}")
 
     print(f"\n{'buyer':24s} {'owns':>5s} {'deals':>6s} {'deliv':>6s} {'locked':>7s}")
     for b in r.buyers:

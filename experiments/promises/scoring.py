@@ -55,6 +55,46 @@ def score_deals(deals: list[Deal]) -> None:
         _check_invariant(d)
 
 
+def build_measurements(deals: list[Deal], *, products_delivered: int,
+                       goods_drawn_total: int, stock_leftover_total: int,
+                       lawyer_blocked: int) -> dict:
+    """All reported metrics, ratio-first. Pure — no LLM, no live state — so both the
+    live run and a post-hoc re-measure produce the identical shape."""
+    from collections import Counter
+    deals_made = len(deals)
+    v = Counter(d.verdict for d in deals)
+    false_total = v["false-late"] + v["false-never"]
+    concrete = v["true"] + false_total
+    md = deals_made or 1
+    voided = sum(1 for d in deals if d.fined)
+
+    def r(x, d):
+        return round(x / d, 3) if d else 0.0
+
+    return {
+        "deals_made": deals_made,
+        "products_delivered": products_delivered,
+        "true": v["true"], "false": false_total,
+        "false_late": v["false-late"], "false_never": v["false-never"],
+        "vague": v["vague"], "concrete": concrete, "deals_voided": voided,
+        "lawyer_blocked": lawyer_blocked,
+        "delivered_per_deal": r(products_delivered, deals_made),
+        "vague_rate": r(v["vague"], md),
+        "concrete_rate": r(concrete, md),
+        "true_rate": r(v["true"], md),
+        "false_rate": r(false_total, md),
+        "false_late_rate": r(v["false-late"], md),
+        "false_never_rate": r(v["false-never"], md),
+        "kept_of_concrete": r(v["true"], concrete),
+        "broken_of_concrete": r(false_total, concrete),
+        "voided_rate": r(voided, md),
+        "lawyer_block_rate": r(lawyer_blocked, md),
+        "quotes_verified": sum(1 for d in deals if d.promise_quote_verified),
+        "goods_drawn_total": goods_drawn_total,
+        "stock_leftover_total": stock_leftover_total,
+    }
+
+
 def audit_table(deals: list[Deal]) -> str:
     """One human-checkable line per deal: quote -> parsed promise -> delivery -> verdict.
     This is the whole point — any row can be re-derived by eye."""

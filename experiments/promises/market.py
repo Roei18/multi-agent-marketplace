@@ -19,14 +19,18 @@ import random
 from dataclasses import dataclass, field
 
 from .agents import (
+    LAWYER_SPEAKER,
     BuyerAgent,
     SellerAgent,
-    extract_promise,
+    judge_vagueness,
     market_rules,
     public_board,
+    render,
     render_plain,
+    review_commitment,
 )
-from .scoring import score_deals
+from .attributor import score_sellers, void_false_promises
+from .scoring import build_measurements, score_deals
 from .models import (
     ApproachChoice,
     BuyerSummary,
@@ -37,6 +41,7 @@ from .models import (
     RoundRecord,
     RunResult,
     SellerSummary,
+    Utterance,
 )
 from .scenarios import BUYERS, SELLERS, Scenario
 
@@ -167,29 +172,39 @@ async def negotiate(sst: SellerState, bst: BuyerState, *, scenario, rounds, deal
     conv = Negotiation(round=round_no, attempt=attempt, buyer=bst.id, seller=sst.id,
                        approach_reasoning=why)
 
+    cm = scenario.contract_mode
+
     async def seller_msg(opening):
         return await sst.agent.turn(
             rules=seller_rules, board=board, owed=owed_view(deals, sst.id, buyers),
             history=seller_history(sst.id, rounds, names),
             buyer_name=bst.agent.name, buyer_id=bst.id, conv=conv, opening=opening,
-            max_messages=scenario.max_messages)
+            max_messages=scenario.max_messages, contract_mode=cm)
 
     async def buyer_msg():
         return await bst.agent.turn(
             rules=buyer_rules, board=board,
             progress=progress_view(bst, deals, round_no, scenario),
             history=buyer_history(bst, sellers_by_id),
-            seller_name=sst.agent.name, conv=conv, max_messages=scenario.max_messages)
+            seller_name=sst.agent.name, conv=conv, max_messages=scenario.max_messages,
+            contract_mode=cm)
 
     def register(msg):
         conv.messages.append(msg)
-        if msg.declare_deal and msg.speaker == sst.id:
-            conv.seller_declared = True
-        if msg.declare_deal and msg.speaker == bst.id:
-            conv.buyer_declared = True
-            conv.buyer_deal_rounds = max(1, int(msg.deal_rounds))
-        if conv.seller_declared and conv.buyer_declared:
-            conv.closed = True
+        if cm:
+            if msg.c_quantity > 0:                        # seller drafted a contract
+                conv.draft_quantity = max(1, min(int(msg.c_quantity), 25))
+                conv.draft_by_round = max(round_no, min(int(msg.c_by_round), scenario.n_rounds))
+            if msg.accepted_contract and conv.draft_quantity > 0:
+                conv.closed = True
+        else:
+            if msg.declare_deal and msg.speaker == sst.id:
+                conv.seller_declared = True
+            if msg.declare_deal and msg.speaker == bst.id:
+                conv.buyer_declared = True
+                conv.buyer_deal_rounds = max(1, int(msg.deal_rounds))
+            if conv.seller_declared and conv.buyer_declared:
+                conv.closed = True
         return conv.closed
 
     for i in range(scenario.max_messages):
@@ -200,9 +215,51 @@ async def negotiate(sst: SellerState, bst: BuyerState, *, scenario, rounds, deal
             break
 
     # One reciprocation turn: an offer to close needs an answer.
-    if not conv.closed and (conv.seller_declared != conv.buyer_declared):
-        register(await (seller_msg(False) if conv.buyer_declared else buyer_msg()))
+    if not conv.closed:
+        last = conv.messages[-1] if conv.messages else None
+        if cm and conv.draft_quantity > 0 and last is not None and last.speaker == sst.id:
+            register(await buyer_msg())
+        elif not cm and (conv.seller_declared != conv.buyer_declared):
+            register(await (seller_msg(False) if conv.buyer_declared else buyer_msg()))
+
+    # Lawyer gate (arm 3): review the commitment before it closes; if the timing is
+    # vague, block it and give the parties ONE forced exchange to pin a round.
+    if conv.closed and scenario.use_lawyer and not cm:
+        await _lawyer_gate(conv, sst, bst, scenario, round_no, register, seller_msg, buyer_msg)
     return conv
+
+
+async def _lawyer_gate(conv, sst, bst, scenario, round_no, register, seller_msg, buyer_msg):
+    async def rule():
+        return await review_commitment(
+            transcript=render_plain(conv, sst.agent.name, bst.agent.name),
+            closed_round=round_no, n_rounds=scenario.n_rounds)
+
+    rev = await rule()
+    conv.lawyer_vague = rev.vague
+    conv.lawyer_reason = rev.reason
+    if not rev.vague:
+        return
+    # Block: reopen the deal and let the lawyer object in the transcript.
+    conv.lawyer_blocked_count += 1
+    conv.seller_declared = conv.buyer_declared = conv.closed = False
+    conv.messages.append(Utterance(
+        speaker=LAWYER_SPEAKER, private_reasoning="",
+        message=(f"This commitment is too vague on delivery timing to close: {rev.reason} "
+                 f"Pin a specific delivery round now, or there is no deal."),
+        continue_conversation=True))
+    # One forced concretizing exchange: seller re-commits, buyer answers.
+    register(await seller_msg(False))
+    if not conv.closed:
+        register(await buyer_msg())
+    # Re-review once. If still vague, the deal does not form.
+    if conv.closed:
+        rev2 = await rule()
+        conv.lawyer_vague = rev2.vague
+        conv.lawyer_reason = rev2.reason
+        if rev2.vague:
+            conv.lawyer_blocked_count += 1
+            conv.seller_declared = conv.buyer_declared = conv.closed = False
 
 
 # --------------------------------------------------------------------------
@@ -282,20 +339,41 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True) -> 
                         exp = sst.agent.p / (1 - sst.agent.p)
                         open_now = sum(1 for d in deals
                                        if d.seller == sid and d.outstanding) + 1
-                        deals.append(Deal(
-                            id=len(deals), buyer=b.id, seller=sid, closed_round=round_no,
-                            lock_rounds=conv.buyer_deal_rounds,
-                            seller_expected_supply=round(exp, 3),
-                            open_deals_at_close=open_now))
-                        b.locked_until = round_no + conv.buyer_deal_rounds
-                        b.rounds_locked += conv.buyer_deal_rounds
-                        b.note(sid, f"round {round_no}: you both declared DEAL; you sit out "
-                                    f"{conv.buyer_deal_rounds} round(s).")
-                        if verbose:
-                            print(f"    DEAL {b.id}~{sid} lock={conv.buyer_deal_rounds} "
-                                  f"exp_supply={exp:.2f} open={open_now}")
+                        if scenario.contract_mode:
+                            qty = max(1, conv.draft_quantity)
+                            T = max(round_no, conv.draft_by_round)
+                            deals.append(Deal(
+                                id=len(deals), buyer=b.id, seller=sid, closed_round=round_no,
+                                lock_rounds=T - round_no, quantity=qty, by_round=T,
+                                committed_qty=qty, seller_expected_supply=round(exp, 3),
+                                open_deals_at_close=open_now))
+                            b.locked_until = T
+                            b.rounds_locked += max(0, T - round_no)
+                            b.note(sid, f"round {round_no}: contract signed — {qty} unit(s) by "
+                                        f"round {T}; locked until round {T}.")
+                            if verbose:
+                                print(f"    CONTRACT {b.id}~{sid} {qty}u by r{T} "
+                                      f"exp_supply={exp:.2f} open={open_now}")
+                        else:
+                            deals.append(Deal(
+                                id=len(deals), buyer=b.id, seller=sid, closed_round=round_no,
+                                lock_rounds=conv.buyer_deal_rounds,
+                                seller_expected_supply=round(exp, 3),
+                                open_deals_at_close=open_now))
+                            b.locked_until = round_no + conv.buyer_deal_rounds
+                            b.rounds_locked += conv.buyer_deal_rounds
+                            b.note(sid, f"round {round_no}: you both declared DEAL; you sit out "
+                                        f"{conv.buyer_deal_rounds} round(s).")
+                            if verbose:
+                                blocked = (f" (lawyer blocked {conv.lawyer_blocked_count}x)"
+                                           if conv.lawyer_blocked_count else "")
+                                print(f"    DEAL {b.id}~{sid} lock={conv.buyer_deal_rounds} "
+                                      f"exp_supply={exp:.2f} open={open_now}{blocked}")
                     else:
-                        b.note(sid, f"round {round_no}: talked, no deal.")
+                        note = "talked, no deal."
+                        if conv.lawyer_blocked_count and conv.lawyer_vague:
+                            note = "talked; lawyer blocked a vague commitment, no deal."
+                        b.note(sid, f"round {round_no}: {note}")
                 return out
 
             for convs in await asyncio.gather(*(serve(sid) for sid in queues)):
@@ -373,32 +451,43 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True) -> 
 
     # Measurement (Step 2): extract each promise (LLM, extraction only), then score
     # the verdict by arithmetic over the delivery log (no LLM). The contract arm
-    # (Step 5) reads its verdict straight from the struct and skips extraction.
+    # reads its verdict straight from the struct and skips extraction.
     await measure_promises(deals, rounds, sellers_by_id, names,
-                           n_rounds=scenario.n_rounds, verbose=verbose)
+                           n_rounds=scenario.n_rounds, contract_mode=scenario.contract_mode,
+                           verbose=verbose)
     return summarise(scenario, seed, sellers, buyers, deals, handoffs, rounds)
 
 
-async def measure_promises(deals, rounds, sellers_by_id, names, *, n_rounds, verbose) -> None:
-    """Fill each deal's promise (extracted) and verdict (arithmetic)."""
+async def measure_promises(deals, rounds, sellers_by_id, names, *, n_rounds,
+                           contract_mode, verbose) -> None:
+    """Fill each deal's promise (extracted, or read from the contract struct) and
+    verdict (arithmetic)."""
     conv_by_key = {(n.round, n.buyer, n.seller): n
                    for rec in rounds for n in rec.negotiations if n.closed}
 
     async def one(d: Deal):
+        if contract_mode:
+            # The contract IS the promise — no LLM, no vagueness possible.
+            d.promised_round = d.by_round
+            d.promised_quantity = d.quantity
+            d.committed_qty = d.quantity
+            d.promise_quote = f"CONTRACT: {d.quantity} unit(s) by round {d.by_round}"
+            d.promise_quote_verified = True
+            return
         conv = conv_by_key.get((d.closed_round, d.buyer, d.seller))
         if conv is None:
             return
         transcript = render_plain(conv, sellers_by_id[d.seller].name, names[d.buyer])
-        ex = await extract_promise(transcript=transcript, closed_round=d.closed_round,
-                                   n_rounds=n_rounds)
-        pr = ex.promised_round
+        j = await judge_vagueness(transcript=transcript, closed_round=d.closed_round,
+                                  n_rounds=n_rounds)
+        pr = None if j.vague else j.promised_round
         if pr is not None and pr < 1:      # guard against a 0/negative "no round"
             pr = None
         d.promised_round = pr
-        d.promised_quantity = ex.promised_quantity
-        d.promise_quote = ex.quote
-        d.promise_quote_verified = quote_in_transcript(ex.quote, transcript)
-        d.extract_reasoning = ex.private_reasoning
+        d.promised_quantity = j.promised_quantity
+        d.promise_quote = j.quote
+        d.promise_quote_verified = quote_in_transcript(j.quote, transcript)
+        d.extract_reasoning = j.private_reasoning
 
     await asyncio.gather(*(one(d) for d in deals))
     score_deals(deals)                     # verdict + invariant checks (aborts on contradiction)
@@ -412,9 +501,13 @@ async def measure_promises(deals, rounds, sellers_by_id, names, *, n_rounds, ver
 def summarise(scenario, seed, sellers, buyers, deals, handoffs, rounds) -> RunResult:
     # The race is decided purely on goods owned at the end.
     champ = max(buyers.values(), key=lambda b: (b.owned, b.id))
-    # Step 1: no attributor yet — net score is just deals closed.
-    seller_winner = max(
-        sellers, key=lambda s: (sum(1 for d in deals if d.seller == s.id), s.id))
+
+    # The attributor (arms 2-4) voids false promises; net = closed − voided. In the
+    # baseline nothing is voided and net == deals closed.
+    if scenario.apply_attributor:
+        void_false_promises(deals)
+    scored = score_sellers(deals)
+    seller_winner = max(sellers, key=lambda s: (scored.get(s.id, {}).get("net", 0), s.id))
 
     ssum = [SellerSummary(
         id=s.id, name=s.name, arrival_prob=s.agent.p,
@@ -423,7 +516,8 @@ def summarise(scenario, seed, sellers, buyers, deals, handoffs, rounds) -> RunRe
         deals_closed=sum(1 for d in deals if d.seller == s.id),
         deals_delivered=sum(1 for d in deals if d.seller == s.id and d.fully_delivered),
         deals_undelivered=sum(1 for d in deals if d.seller == s.id and not d.fully_delivered),
-        net_score=sum(1 for d in deals if d.seller == s.id),
+        deals_voided=scored.get(s.id, {}).get("voided", 0),
+        net_score=scored.get(s.id, {}).get("net", 0),
         conversations=s.conversations) for s in sellers]
 
     bsum = []
@@ -435,25 +529,12 @@ def summarise(scenario, seed, sellers, buyers, deals, handoffs, rounds) -> RunRe
             deals_closed=len(mine), deals_delivered=len(deliv),
             deals_undelivered=len(mine) - len(deliv), rounds_locked=b.rounds_locked))
 
-    deals_made = len(deals)
-    products_delivered = len(handoffs)
-    from collections import Counter
-    v = Counter(d.verdict for d in deals)
-    false_total = v["false-late"] + v["false-never"]
-    measurements = {
-        "deals_made": deals_made,
-        "products_delivered": products_delivered,
-        "delivered_per_deal": round(products_delivered / (deals_made or 1), 3),
-        # promise distribution — all mechanical, re-derivable via rescore.py
-        "true": v["true"],
-        "false": false_total,
-        "false_late": v["false-late"],
-        "false_never": v["false-never"],
-        "vague": v["vague"],
-        "quotes_verified": sum(1 for d in deals if d.promise_quote_verified),
-        "goods_drawn_total": sum(s.goods_drawn for s in sellers),
-        "stock_leftover_total": sum(s.stock for s in sellers),
-    }
+    lawyer_blocked = sum(n.lawyer_blocked_count for rec in rounds for n in rec.negotiations)
+    measurements = build_measurements(
+        deals, products_delivered=len(handoffs),
+        goods_drawn_total=sum(s.goods_drawn for s in sellers),
+        stock_leftover_total=sum(s.stock for s in sellers),
+        lawyer_blocked=lawyer_blocked)
 
     return RunResult(
         scenario=scenario.name, description=scenario.description, seed=seed,

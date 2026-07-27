@@ -81,8 +81,28 @@ SCENARIOS: dict[str, Scenario] = {
         description="Free talk, no regulator, no gate. The natural rate of promising, "
         "breaking, and vagueness — the control for every other arm.",
     ),
-    # attributor / lawyer_attributor / contract_attributor are registered as their
-    # steps land (Steps 3-5), so no arm is ever run half-wired.
+    "attributor": Scenario(
+        name="attributor",
+        description="Same market as baseline, but a regulator voids every broken promise "
+        "(committed to a delivery round and missed it) from the seller's score. Sellers know.",
+        apply_attributor=True,
+    ),
+    "lawyer_attributor": Scenario(
+        name="lawyer_attributor",
+        description="Attributor plus a LAWYER that reviews each commitment before the deal "
+        "closes and blocks vague ones — the parties must pin a delivery round or there is no "
+        "deal. Removes the vagueness escape hatch ex ante.",
+        apply_attributor=True,
+        use_lawyer=True,
+    ),
+    "contract_attributor": Scenario(
+        name="contract_attributor",
+        description="The deal is a structured {quantity, by_round} contract the seller drafts "
+        "and the buyer accepts; the regulator voids contracts not kept. Vague is impossible by "
+        "construction.",
+        apply_attributor=True,
+        contract_mode=True,
+    ),
 }
 
 
