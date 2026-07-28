@@ -78,23 +78,23 @@ contract's `by_round`, read straight from the struct, so vague is impossible.
 
 ---
 
-## Results (8 sellers × 16 buyers × 12 rounds, seeds 0 and 1)
+## Results (8 sellers × 16 buyers × 12 rounds, seeds 0, 1, 2)
 
-~65 deals per free-text arm per seed; supply identical across arms *within* a seed
-(135 units drawn at seed 0, 149 at seed 1); determinism verified on all eight runs.
-Each cell is **seed 0 / seed 1**.
+~60–67 deals per free-text arm per seed; supply identical across arms *within* a seed
+(135 / 149 / 152 units drawn at seeds 0 / 1 / 2); determinism verified on all twelve
+runs. Each cell is **seed 0 / seed 1 / seed 2**.
 
 ### Promise distribution + welfare (supply-independent)
 
-| metric (seed 0 / seed 1) | baseline | attributor | lawyer+attr | contract+attr |
+| metric (s0 / s1 / s2) | baseline | attributor | lawyer+attr | contract+attr |
 |---|---|---|---|---|
-| **vague %** | 78 / 81 | **88 / 84** | 5 / 6 | 0 / 0 |
-| true (on-time) % | 14 / 19 | 11 / 15 | **79 / 84** | 27 / 49 |
-| false % | 8 / 0 | 2 / 1 | 16 / 9 | **73 / 51** |
-| kept-of-concrete %* | 64 / 100 | 88 / 91 | 83 / 90 | 27 / 49 |
-| **true deals (welfare)** | 9 / 13 | 7 / 10 | **49 / 54** | 16 / 36 |
-| seller-winner profit (net deals) | 15 / 15 | 17 / 18 | 11 / 14 | 5 / 7 |
-| buyer-champion profit (goods) | 5 / 5 | 5 / 5 | 4 / 4 | 9 / 10 |
+| **vague %** | 78 / 81 / 82 | **88 / 84 / 86** | 5 / 6 / 7 | 0 / 0 / 0 |
+| true (on-time) % | 14 / 19 / 18 | 11 / 15 / 14 | **79 / 84 / 84** | 27 / 49 / 66 |
+| false % | 8 / 0 / 0 | 2 / 1 / 0 | 16 / 9 / 9 | **73 / 51 / 34** |
+| kept-of-concrete %* | 64 / 100 / 100 | 88 / 91 / 100 | 83 / 90 / 90 | 27 / 49 / 66 |
+| **true deals (welfare)** | 9 / 13 / 12 | 7 / 10 / 9 | **49 / 54 / 56** | 16 / 36 / 39 |
+| seller-winner profit (net deals) | 15 / 15 / 13 | 17 / 18 / 13 | 11 / 14 / 11 | 5 / 7 / 9 |
+| buyer-champion profit (goods) | 5 / 5 / 5 | 5 / 5 / 5 | 4 / 4 / 5 | 9 / 10 / 12 |
 
 \*share of *concrete* promises kept on time; noisy in free-text arms (few concrete deals → small denominator).
 
@@ -106,20 +106,21 @@ Each cell is **seed 0 / seed 1**.
 | truthfulness, early→late | 5%→25% | 4%→22% | 81%→84% | 29%→23% |
 | **return-to-deliverer**, early→late | 5%→25% | 0→**39%** | 4%→35% | 0→9% |
 
-### What replicated across the two seeds
+### What replicated across three seeds
 
-- **Robust:** only the **lawyer** produces honesty (79–84% true, welfare winner at
-  49–54 honest deals ≈ 5× every other arm); free-text arms stay overwhelmingly
-  **vague** (78–88%); the contract removes vagueness by design but carries the
-  **highest breach** (51–73%); winner profits are stable.
-- **Direction holds, size noisy:** the **dodge** — attributor *more* vague than
-  baseline — appears in both seeds (78<88, 81<84) but the gap shrank (+10 → +3 pts):
-  a small effect on an already-high baseline.
-- **Too noisy to claim:** kept-of-concrete (tiny concrete-deal denominators) and the
-  contract true/false split (tracks that seed's supply).
+- **Robust:** only the **lawyer** produces honesty (**79 / 84 / 84%** true, welfare
+  winner at **49 / 54 / 56** honest deals ≈ 5× every other arm); free-text arms stay
+  overwhelmingly **vague** (baseline **78 / 81 / 82%** — strikingly stable); winner
+  profits are stable.
+- **The dodge holds 3/3:** the attributor is *more* vague than baseline in every seed
+  (78<88, 81<84, 82<86) — a **consistent direction**, but a small margin
+  (+10 / +3 / +4 pts) on an already-high baseline.
+- **High variance (don't over-read one seed):** the **contract** breach rate falls as
+  more supply is drawn (**73 / 51 / 34%** false); kept-of-concrete is noisy in
+  free-text arms (tiny denominators).
 
-> **Two seeds — direction, not effect size.** A 3–5 seed sweep is needed to put error
-> bars on the deltas, especially the dodge.
+> **Three seeds — direction is solid, the dodge *magnitude* is not yet pinned** (a
+> small +3–10 pt effect). More seeds would tighten it.
 
 ---
 
