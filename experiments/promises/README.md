@@ -98,6 +98,20 @@ sixteen runs. Each cell is **seed 0 / 1 / 2 / 3**.
 
 \*share of *concrete* promises kept on time; noisy in free-text arms (few concrete deals → small denominator).
 
+### Deal counts — real vs false vs vague (totals over seeds 0–3)
+
+| variant | real (kept, on-time) | false (broken) | vague (no time pinned) | total |
+|---|---|---|---|---|
+| baseline | 49 | 7 | **211** | 267 |
+| attributor | 36 | 4 | **225** | 265 |
+| lawyer+attr | **203** | 41 | 15 | 259 |
+| contract+attr | 117 | **140** | 0 | 257 |
+
+The free-text arms produce almost **no real promises** — nearly every deal is vague
+(211 / 225 of ~265). The **lawyer** flips the market into real promises (203 kept vs
+41 broken). The **contract** forces concreteness but breaks more than it keeps
+(117 vs 140).
+
 ### Equilibrium — what the market converged to (seed 0)
 
 | | baseline | attributor | lawyer+attr | contract+attr |
