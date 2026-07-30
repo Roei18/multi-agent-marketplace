@@ -8,30 +8,30 @@ All comparison metrics are ratios in [0,1], so arms are comparable regardless of
 
 | | baseline | attributor | lawyer+attr | contract+attr |
 |---|---|---|---|---|
-| **vague rate** | **78%** | **88%** | **5%** | **0%** |
-| concrete rate | 22% | 12% | 95% | 100% |
-| true (on-time) rate | 14% | 11% | 79% | 27% |
-| false rate | 8% | 2% | 16% | 73% |
-|   · false-late | 5% | 2% | 16% | 0% |
-|   · false-never | 3% | 0% | 0% | 73% |
+| **vague rate** | **77%** | **77%** | **6%** | **0%** |
+| concrete rate | 23% | 23% | 94% | 100% |
+| true (on-time) rate | 20% | 16% | 54% | 78% |
+| false rate | 3% | 7% | 40% | 22% |
+|   · false-late | 2% | 5% | 26% | 0% |
+|   · false-never | 1% | 2% | 14% | 22% |
 
 ## Honesty among sellers who committed to a round (supply-independent)
 
 | | baseline | attributor | lawyer+attr | contract+attr |
 |---|---|---|---|---|
-| **kept-of-concrete** | **64%** | **88%** | **83%** | **27%** |
-| broken-of-concrete | 36% | 12% | 17% | 73% |
+| **kept-of-concrete** | **86%** | **68%** | **58%** | **78%** |
+| broken-of-concrete | 14% | 32% | 42% | 22% |
 
 ## Regulation intensity
 
 | | baseline | attributor | lawyer+attr | contract+attr |
 |---|---|---|---|---|
-| voided rate | 0% | 2% | 16% | 73% |
+| voided rate | 0% | 7% | 40% | 22% |
 | lawyer-block rate | — | — | 34% | — |
 
 ## Volume & delivery (context — delivered/deal is SUPPLY-BOUND, not a regime metric)
 
 | | baseline | attributor | lawyer+attr | contract+attr |
 |---|---|---|---|---|
-| deals made | 65 | 65 | 62 | 60 |
-| delivered / deal (supply-bound) | 92% | 100% | 100% | 137% |
+| deals made | 96 | 96 | 96 | 96 |
+| delivered / deal (supply-bound) | 86% | 88% | 86% | 78% |
