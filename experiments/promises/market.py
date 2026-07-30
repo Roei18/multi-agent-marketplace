@@ -179,7 +179,8 @@ async def negotiate(sst: SellerState, bst: BuyerState, *, scenario, rounds, deal
             rules=seller_rules, board=board, owed=owed_view(deals, sst.id, buyers),
             history=seller_history(sst.id, rounds, names),
             buyer_name=bst.agent.name, buyer_id=bst.id, conv=conv, opening=opening,
-            max_messages=scenario.max_messages, contract_mode=cm)
+            max_messages=scenario.max_messages, contract_mode=cm,
+            single_good=scenario.single_good)
 
     async def buyer_msg():
         return await bst.agent.turn(
@@ -340,30 +341,36 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True) -> 
                         open_now = sum(1 for d in deals
                                        if d.seller == sid and d.outstanding) + 1
                         if scenario.contract_mode:
-                            qty = max(1, conv.draft_quantity)
+                            # Deals are for ONE good (single_good caps the drafted quantity to
+                            # 1, matching the free-text arms and removing the quantity confound).
+                            qty = 1 if scenario.single_good else max(1, conv.draft_quantity)
                             T = max(round_no, conv.draft_by_round)
+                            # single_round_lock: the buyer sits out only 1 round (anti-spam),
+                            # not until the delivery deadline T.
+                            lock_until = round_no + 1 if scenario.single_round_lock else T
                             deals.append(Deal(
                                 id=len(deals), buyer=b.id, seller=sid, closed_round=round_no,
-                                lock_rounds=T - round_no, quantity=qty, by_round=T,
+                                lock_rounds=lock_until - round_no, quantity=qty, by_round=T,
                                 committed_qty=qty, seller_expected_supply=round(exp, 3),
                                 open_deals_at_close=open_now))
-                            b.locked_until = T
-                            b.rounds_locked += max(0, T - round_no)
+                            b.locked_until = lock_until
+                            b.rounds_locked += max(0, lock_until - round_no)
+                            lk = "1 round" if scenario.single_round_lock else f"round {T}"
                             b.note(sid, f"round {round_no}: contract signed — {qty} unit(s) by "
-                                        f"round {T}; locked until round {T}.")
+                                        f"round {T}; locked {lk}.")
                             if verbose:
                                 print(f"    CONTRACT {b.id}~{sid} {qty}u by r{T} "
                                       f"exp_supply={exp:.2f} open={open_now}")
                         else:
+                            lk = 1 if scenario.single_round_lock else conv.buyer_deal_rounds
                             deals.append(Deal(
                                 id=len(deals), buyer=b.id, seller=sid, closed_round=round_no,
-                                lock_rounds=conv.buyer_deal_rounds,
-                                seller_expected_supply=round(exp, 3),
+                                lock_rounds=lk, seller_expected_supply=round(exp, 3),
                                 open_deals_at_close=open_now))
-                            b.locked_until = round_no + conv.buyer_deal_rounds
-                            b.rounds_locked += conv.buyer_deal_rounds
+                            b.locked_until = round_no + lk
+                            b.rounds_locked += lk
                             b.note(sid, f"round {round_no}: you both declared DEAL; you sit out "
-                                        f"{conv.buyer_deal_rounds} round(s).")
+                                        f"{lk} round(s).")
                             if verbose:
                                 blocked = (f" (lawyer blocked {conv.lawyer_blocked_count}x)"
                                            if conv.lawyer_blocked_count else "")
