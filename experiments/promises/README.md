@@ -78,23 +78,23 @@ contract's `by_round`, read straight from the struct, so vague is impossible.
 
 ---
 
-## Results (8 sellers × 16 buyers × 12 rounds, seeds 0, 1, 2)
+## Results (8 sellers × 16 buyers × 12 rounds, seeds 0, 1, 2, 3)
 
-~60–67 deals per free-text arm per seed; supply identical across arms *within* a seed
-(135 / 149 / 152 units drawn at seeds 0 / 1 / 2); determinism verified on all twelve
-runs. Each cell is **seed 0 / seed 1 / seed 2**.
+~60–68 deals per free-text arm per seed; supply identical across arms *within* a seed
+(135 / 149 / 152 / 134 units drawn at seeds 0 / 1 / 2 / 3); determinism verified on all
+sixteen runs. Each cell is **seed 0 / 1 / 2 / 3**.
 
 ### Promise distribution + welfare (supply-independent)
 
-| metric (s0 / s1 / s2) | baseline | attributor | lawyer+attr | contract+attr |
+| metric (s0 / s1 / s2 / s3) | baseline | attributor | lawyer+attr | contract+attr |
 |---|---|---|---|---|
-| **vague %** | 78 / 81 / 82 | **88 / 84 / 86** | 5 / 6 / 7 | 0 / 0 / 0 |
-| true (on-time) % | 14 / 19 / 18 | 11 / 15 / 14 | **79 / 84 / 84** | 27 / 49 / 66 |
-| false % | 8 / 0 / 0 | 2 / 1 / 0 | 16 / 9 / 9 | **73 / 51 / 34** |
-| kept-of-concrete %* | 64 / 100 / 100 | 88 / 91 / 100 | 83 / 90 / 90 | 27 / 49 / 66 |
-| **true deals (welfare)** | 9 / 13 / 12 | 7 / 10 / 9 | **49 / 54 / 56** | 16 / 36 / 39 |
-| seller-winner profit (net deals) | 15 / 15 / 13 | 17 / 18 / 13 | 11 / 14 / 11 | 5 / 7 / 9 |
-| buyer-champion profit (goods) | 5 / 5 / 5 | 5 / 5 / 5 | 4 / 4 / 5 | 9 / 10 / 12 |
+| **vague %** | 78 / 81 / 82 / 74 | **88 / 84 / 86 / 82** | 5 / 6 / 7 / 5 | 0 / 0 / 0 / 0 |
+| true (on-time) % | 14 / 19 / 18 / 23 | 11 / 15 / 14 / 15 | **79 / 84 / 84 / 67** | 27 / 49 / 66 / 40 |
+| false % | 8 / 0 / 0 / 3 | 2 / 1 / 0 / 3 | 16 / 9 / 9 / 29 | **73 / 51 / 34 / 60** |
+| kept-of-concrete %* | 64 / 100 / 100 / 88 | 88 / 91 / 100 / 83 | 83 / 90 / 90 / 70 | 27 / 49 / 66 / 40 |
+| **true deals (welfare)** | 9 / 13 / 12 / 15 | 7 / 10 / 9 / 10 | **49 / 54 / 56 / 44** | 16 / 36 / 39 / 26 |
+| seller-winner profit (net deals) | 15 / 15 / 13 / 17 | 17 / 18 / 13 / 14 | 11 / 14 / 11 / 12 | 5 / 7 / 9 / 11 |
+| buyer-champion profit (goods) | 5 / 5 / 5 / 4 | 5 / 5 / 5 / 5 | 4 / 4 / 5 / 5 | 9 / 10 / 12 / 11 |
 
 \*share of *concrete* promises kept on time; noisy in free-text arms (few concrete deals → small denominator).
 
@@ -106,21 +106,20 @@ runs. Each cell is **seed 0 / seed 1 / seed 2**.
 | truthfulness, early→late | 5%→25% | 4%→22% | 81%→84% | 29%→23% |
 | **return-to-deliverer**, early→late | 5%→25% | 0→**39%** | 4%→35% | 0→9% |
 
-### What replicated across three seeds
+### What replicated across four seeds
 
-- **Robust:** only the **lawyer** produces honesty (**79 / 84 / 84%** true, welfare
-  winner at **49 / 54 / 56** honest deals ≈ 5× every other arm); free-text arms stay
-  overwhelmingly **vague** (baseline **78 / 81 / 82%** — strikingly stable); winner
-  profits are stable.
-- **The dodge holds 3/3:** the attributor is *more* vague than baseline in every seed
-  (78<88, 81<84, 82<86) — a **consistent direction**, but a small margin
-  (+10 / +3 / +4 pts) on an already-high baseline.
-- **High variance (don't over-read one seed):** the **contract** breach rate falls as
-  more supply is drawn (**73 / 51 / 34%** false); kept-of-concrete is noisy in
-  free-text arms (tiny denominators).
+- **Robust:** only the **lawyer** produces honesty (**67–84%** true, welfare winner at
+  **44–56** honest deals ≈ 4–5× every other arm); free-text arms stay overwhelmingly
+  **vague** (baseline **74–82%** — strikingly stable); winner profits are stable.
+- **The dodge holds 4/4:** the attributor is *more* vague than baseline in **every**
+  seed (78<88, 81<84, 82<86, 74<82) — a **consistent direction**, margin
+  **+10 / +3 / +4 / +8 pts** (mean ≈ +6) on an already-high baseline.
+- **High variance (don't over-read one seed):** the **contract** breach rate swings
+  with supply (**73 / 51 / 34 / 60%** false); kept-of-concrete is noisy in free-text
+  arms (tiny denominators).
 
-> **Three seeds — direction is solid, the dodge *magnitude* is not yet pinned** (a
-> small +3–10 pt effect). More seeds would tighten it.
+> **Four seeds — direction is solid** (dodge 4/4, lawyer honesty 4/4); the dodge
+> *magnitude* (+3–10 pt) still benefits from more seeds.
 
 ---
 

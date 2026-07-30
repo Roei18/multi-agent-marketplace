@@ -33,14 +33,17 @@ from experiments.promises.scoring import build_measurements, score_deals
 RESULTS_DIR = Path(__file__).parent / "results"
 
 
-async def remeasure(r: RunResult) -> RunResult:
+async def remeasure(r: RunResult, force_judge: bool = False) -> RunResult:
+    # force_judge=True makes even the contract arm go through judge_vagueness on the
+    # transcript (apples-to-apples with the free-text arms), instead of reading its
+    # {quantity, by_round} struct. The mechanical struct file stays as ground truth.
     snames = {s.id: s.name for s in r.sellers}
     bnames = {b.id: b.name for b in r.buyers}
     conv_by_key = {(n.round, n.buyer, n.seller): n
                    for rec in r.rounds for n in rec.negotiations if n.closed}
 
     async def one(d):
-        if r.contract_mode:                      # contract arm: promise is the struct
+        if r.contract_mode and not force_judge:  # contract arm: promise is the struct
             d.promised_round = d.by_round
             d.promised_quantity = d.quantity
             d.promise_quote = f"CONTRACT: {d.quantity} unit(s) by round {d.by_round}"
@@ -81,13 +84,17 @@ async def remeasure(r: RunResult) -> RunResult:
 
 
 def main() -> None:
-    if len(sys.argv) != 2:
-        raise SystemExit("usage: python -m experiments.promises.remeasure <run.json>")
-    src = Path(sys.argv[1])
+    force = "--force-judge" in sys.argv
+    pos = [a for a in sys.argv[1:] if not a.startswith("-")]
+    if len(pos) != 1:
+        raise SystemExit("usage: python -m experiments.promises.remeasure <run.json> "
+                         "[--force-judge]")
+    src = Path(pos[0])
     r = RunResult.model_validate(json.loads(src.read_text()))
-    r = asyncio.run(remeasure(r))
+    r = asyncio.run(remeasure(r, force_judge=force))
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    out = RESULTS_DIR / f"{r.scenario}_s{r.seed}_{ts}_judged.json"
+    tag = "_fjudged" if (force and r.contract_mode) else "_judged"
+    out = RESULTS_DIR / f"{r.scenario}_s{r.seed}_{ts}{tag}.json"
     out.write_text(json.dumps(r.model_dump(mode="json"), indent=2))
     m = r.measurements
     print(f"{r.scenario}: vague_rate={m['vague_rate']}  true_rate={m['true_rate']}  "
