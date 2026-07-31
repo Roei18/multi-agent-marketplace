@@ -170,6 +170,20 @@ def analyze(r: RunResult) -> dict:
     # attributor activity: how many deals it voided (fined) as broken promises
     fines = sum(1 for d in r.deals if d.fined)
 
+    # lawyer activity: how the DECLINING of vague commitments distributes.
+    # Per negotiation the lawyer blocks 0/1/2 times; a block forces one concretizing
+    # exchange, then a deal either recovers (closes concrete) or walks (never pinned).
+    lw_reviewed = sum(1 for ng in negs if ng.lawyer_vague is not None)
+    lw_declines = sum(ng.lawyer_blocked_count for ng in negs)
+    lw_clean = sum(1 for ng in negs if ng.lawyer_vague is not None and ng.lawyer_blocked_count == 0)
+    lw_once = sum(1 for ng in negs if ng.lawyer_blocked_count == 1)
+    lw_twice = sum(1 for ng in negs if ng.lawyer_blocked_count >= 2)
+    lw_blocked = sum(1 for ng in negs if ng.lawyer_blocked_count > 0)
+    lw_recovered = sum(1 for ng in negs if ng.lawyer_blocked_count > 0 and ng.closed)
+    lw_walked = sum(1 for ng in negs if ng.lawyer_blocked_count > 0 and not ng.closed)
+    lw_by_round = [sum(ng.lawyer_blocked_count for ng in negs if ng.round == t)
+                   for t in range(1, n + 1)]
+
     return {
         "scenario": r.scenario, "seed": r.seed, "n_rounds": n, "n_sellers": r.n_sellers,
         "n_negs": len(negs), "n_closed": len(close_attempts), "n_deals": len(r.deals),
@@ -194,6 +208,10 @@ def analyze(r: RunResult) -> dict:
         "reapproach_after_letdown": _rate(back_l, pairs_l),
         "pairs_delivered": pairs_d, "pairs_letdown": pairs_l,
         "fines": fines,
+        # lawyer declining
+        "lw_reviewed": lw_reviewed, "lw_declines": lw_declines, "lw_clean": lw_clean,
+        "lw_once": lw_once, "lw_twice": lw_twice, "lw_blocked": lw_blocked,
+        "lw_recovered": lw_recovered, "lw_walked": lw_walked, "lw_by_round": lw_by_round,
     }
 
 
@@ -269,6 +287,40 @@ def render(arms: list[dict], seed_label: str) -> str:
         row("re-approach AFTER a let-down",
             lambda a: f"{a['reapproach_after_letdown']} (n={round(a['pairs_letdown'])})"),
         "",
+    ]
+
+    # lawyer-only section: how declining vague commitments distributes
+    law = next((a for a in arms if a["scenario"] == "lawyer_attributor"), None)
+    if law and law["lw_reviewed"]:
+        rev, dec = law["lw_reviewed"], law["lw_declines"]
+        L += [
+            "### Lawyer — how declining distributes (lawyer+attr arm)",
+            "",
+            "*On a vague close the lawyer blocks it and forces one concretizing exchange; "
+            "the deal then either recovers (closes with a round pinned) or walks (never "
+            "pinned → no deal). Per negotiation it blocks 0/1/2 times.*",
+            "",
+            "| metric | value |", "|---|---|",
+            f"| commitments reviewed | {round(rev, 1)} |",
+            f"| total declines | {round(dec, 1)} |",
+            f"| passed clean (0 blocks) | {round(law['lw_clean'], 1)} "
+            f"({round(100 * law['lw_clean'] / rev) if rev else 0}%) |",
+            f"| declined once | {round(law['lw_once'], 1)} |",
+            f"| declined twice (max) | {round(law['lw_twice'], 1)} |",
+            f"| of declined: recovered (closed) | {round(law['lw_recovered'], 1)} "
+            f"({round(100 * law['lw_recovered'] / law['lw_blocked']) if law['lw_blocked'] else 0}%) |",
+            f"| of declined: walked (no deal) | {round(law['lw_walked'], 1)} "
+            f"({round(100 * law['lw_walked'] / law['lw_blocked']) if law['lw_blocked'] else 0}%) |",
+            "",
+            "Declines per round (front-loaded — sellers learn to commit up front):",
+            "",
+            "| " + " | ".join(str(t) for t in range(1, law["n_rounds"] + 1)) + " |",
+            "|" + "---|" * law["n_rounds"],
+            "| " + " | ".join(str(x) for x in law["lw_by_round"]) + " |",
+            "",
+        ]
+
+    L += [
         "## Per-round deal distribution",
         "",
     ]
@@ -322,6 +374,8 @@ def _avg_arms(per_seed: list[list[dict]]) -> list[dict]:
             "true": round(statistics.mean(v["series"][t]["true"] for v in variants), 1),
             "false": round(statistics.mean(v["series"][t]["false"] for v in variants), 1),
         } for t in range(n)]
+        base["lw_by_round"] = [round(statistics.mean(v["lw_by_round"][t] for v in variants), 1)
+                               for t in range(n)]
         base["seed"] = "avg"
         out.append(base)
     return out

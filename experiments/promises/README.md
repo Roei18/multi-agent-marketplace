@@ -190,6 +190,19 @@ talked but never both declared DEAL. In free text they almost never walk away
 working, blocking vague commitments that never get pinned to a round — and the
 **contract** arm walks when the buyer declines the seller's draft.
 
+**How the lawyer's declining distributes.** On a vague close the lawyer blocks it and
+forces one concretizing exchange; the deal then *recovers* (a round gets pinned and it
+closes) or *walks* (never pinned → no deal). Per seed the lawyer reviews ~103
+commitments and issues ~31 declines — **~70% pass clean**, ~30% are declined (almost
+always once; a second decline is the rare hard cap). **Of the declined, 77% recover**
+(the seller pins a round after the nudge) and **23% walk away**. Declining is
+**front-loaded** — ~10 in round 1, tapering to ~3–4 per active round — as sellers learn
+to commit up front:
+
+| round | 1 | 3 | 5 | 7 | 9 | 11 |
+|---|---|---|---|---|---|---|
+| declines | 10.0 | 6.7 | 3.0 | 4.0 | 3.7 | 3.7 |
+
 ### What the fair (one-good) comparison shows
 
 - **Forcing concreteness produces kept promises; free text does not.** Free-text

@@ -53,6 +53,26 @@
 | re-approach AFTER a delivery | 0.27 (n=67) | 0.22 (n=72) | 0.31 (n=66) | 0.21 (n=67) |
 | re-approach AFTER a let-down | 0.12 (n=5) | 0.1 (n=4) | 0.2 (n=8) | 0.39 (n=13) |
 
+### Lawyer — how declining distributes (lawyer+attr arm)
+
+*On a vague close the lawyer blocks it and forces one concretizing exchange; the deal then either recovers (closes with a round pinned) or walks (never pinned → no deal). Per negotiation it blocks 0/1/2 times.*
+
+| metric | value |
+|---|---|
+| commitments reviewed | 103 |
+| total declines | 31.3 |
+| passed clean (0 blocks) | 72 (70%) |
+| declined once | 30.7 |
+| declined twice (max) | 0.3 |
+| of declined: recovered (closed) | 24 (77%) |
+| of declined: walked (no deal) | 7 (23%) |
+
+Declines per round (front-loaded — sellers learn to commit up front):
+
+| 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 10 | 0 | 6.7 | 0 | 3 | 0 | 4 | 0 | 3.7 | 0 | 3.7 | 0.3 |
+
 ## Per-round deal distribution
 
 ### baseline (seed avg, 96 deals)
