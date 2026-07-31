@@ -1,19 +1,3 @@
-# promises — who is to blame when an AI agent breaks a promise?
-
-A marketplace of LLM agents that make **delivery promises** to each other under
-**uncertain supply**, and four ways of policing those promises. The point of the
-experiment is **error attribution**: when a seller says "you'll have it next round"
-and it doesn't come, can we tell — reliably, in a way we'd defend to a stranger —
-whether that was a broken promise, an honest hedge, or just bad luck?
-
-The headline is not only the result but *the measurement*: **no LLM ever decides
-the verdict.** An LLM only reads the transcript and reports what delivery round the
-seller committed to (with a verbatim quote we check against the log); whether that
-promise was *kept* is then pure arithmetic over the ground-truth delivery record.
-Every number below can be re-derived by hand — see [Auditing](#auditing-every-number).
-
----
-
 ## The setting
 
 A market of **sellers** who supply one generic good and **buyers** who want to own
@@ -42,11 +26,9 @@ seller actually committed to:
 
 Every protocol runs the **same market on the same supply** (matched RNG), every deal
 is for **one good**, and a closed deal blocks the buyer from dealing again **for that
-round and the next** (so each buyer closes one deal every two rounds) — so they are
-apples-to-apples. They differ only by two optional roles.
-
+round and the next** (so each buyer closes one deal every two rounds) 
 **Roles**
-- **Attributor** — after all rounds, reviews the record and **voids** every concrete
+- **Attributor** — after all rounds, reviews the record and **cancels** every concrete
   promise not delivered **on time** (late or never), striking it from the seller's
   score.
 - **Lawyer** — at the point a DEAL would close, reviews the conversation and lets it
