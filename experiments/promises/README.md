@@ -41,7 +41,8 @@ seller actually committed to:
 ## Roles and protocols
 
 Every protocol runs the **same market on the same supply** (matched RNG), every deal
-is for **one good**, and a closed deal locks the buyer for **one round** — so they are
+is for **one good**, and a closed deal blocks the buyer from dealing again **for that
+round and the next** (so each buyer closes one deal every two rounds) — so they are
 apples-to-apples. They differ only by two optional roles.
 
 **Roles**
@@ -98,9 +99,10 @@ contract's `by_round`, read straight from the struct, so vague is impossible.
 
 ## Results (8 sellers × 16 buyers × 12 rounds, seeds 0, 1, 2)
 
-Every arm produces exactly **96 deals** (the single-round lock lets each of 16 buyers
-close one deal every 2 rounds), so deal volume is a constant and the columns are a
-clean apples-to-apples comparison. Supply is identical across arms within a seed
+Every arm produces exactly **96 deals** (a closed deal blocks the buyer for that round
+and the next, so each of 16 buyers closes one deal every 2 rounds — deals land in the
+6 odd rounds), so deal volume is a constant and the columns are a clean
+apples-to-apples comparison. Supply is identical across arms within a seed
 (135 / 149 / 152 units drawn at seeds 0 / 1 / 2); determinism verified on all twelve
 runs. Values are the **average over seeds 0–2**.
 
@@ -134,6 +136,59 @@ runs. Values are the **average over seeds 0–2**.
 | vagueness, early→late third | 84%→75% | 91%→75% | 6%→3% | 0→0 |
 | truthfulness, early→late | 12%→25% | 6%→22% | 56%→62% | 66%→**97%** |
 | **return-to-deliverer**, early→late | 0→31% | 0→41% | 3%→44% | 0→21% |
+
+### Market dynamics (averages over seeds 0–2)
+
+Three views of *how* the market runs, not just its end state — all mechanical
+post-hoc analysis, re-derivable with `python -m experiments.promises.dynamics`.
+
+**Deal distribution per round.** Deals close only in the 6 odd rounds (the 2-round
+block). Free-text arms are flat — ~86% vague every round, no trend toward honesty;
+lawyer/contract are concrete from round 1, their true-vs-false wobbling with each
+round's supply luck. Read as vague / true / false:
+
+| round | baseline | attributor | lawyer+attr | contract+attr |
+|---|---|---|---|---|
+| 1 | 13.7 / 1.3 / 1.0 | 14.0 / 1.3 / 0.7 | 1.0 / 8.7 / 6.3 | 0 / 12.0 / 4.0 |
+| 3 | 14.3 / 1.3 / 0.3 | 14.3 / 0.7 / 1.0 | 1.3 / 11.7 / 2.7 | 0 / 13.3 / 2.7 |
+| 5 | 13.3 / 2.7 / 0 | 12.7 / 2.7 / 0.7 | 1.0 / 10.7 / 4.0 | 0 / 12.0 / 4.0 |
+| 7 | 13.7 / 1.7 / 0.7 | 13.0 / 2.0 / 1.0 | 1.7 / 11.0 / 3.0 | 0 / 13.7 / 2.3 |
+| 9 | 14.0 / 2.0 / 0 | 15.0 / 0.7 / 0.3 | 0.3 / 12.3 / 3.0 | 0 / 15.3 / 0.7 |
+| 11 | 13.3 / 2.7 / 0 | 10.7 / 4.7 / 0.7 | 0.3 / 10.7 / 4.7 | 0 / 15.0 / 1.0 |
+
+**Social welfare — top vs. average agent.** Seller score = net deals (closed − voided);
+buyer score = goods owned. The market is fairly egalitarian; no runaway winner.
+
+| | baseline | attributor | lawyer+attr | contract+attr |
+|---|---|---|---|---|
+| seller top / average | 18.7 / 12.0 | 17.0 / 11.5 | 16.3 / 9.0 | 17.0 / 10.2 |
+| seller top ÷ avg | 1.56 | 1.49 | **1.84** | 1.66 |
+| buyer top / average | 7.0 / 5.7 | 6.7 / 5.8 | 6.0 / 5.5 | 6.0 / 5.1 |
+| buyer top ÷ avg | 1.22 | 1.15 | 1.09 | 1.18 |
+
+The **seller** winner runs ~1.5–1.8× ahead of the pack (widest under the lawyer, which
+thins the average by voiding more); the **buyer** champion only ~1.1–1.2× ahead — goods
+are spread thin (supply ≈ 145 over 16 buyers).
+
+**Negotiations.** A buyer essentially closes with the **first seller it approaches** —
+a near-benign game for sellers (no real seller-vs-seller competition for a buyer).
+
+| | baseline | attributor | lawyer+attr | contract+attr |
+|---|---|---|---|---|
+| attempts to close (mean, ≤3) | 1.00 | 1.00 | 1.08 | 1.03 |
+| closed on 1st seller | 100% | 100% | 92% | 97% |
+| distinct sellers/buyer over game (of 8) | 4.4 | 4.6 | 4.6 | 4.8 |
+| conversation length (mean turns, cap 12) | 8.5 | 8.6 | 8.5 | **7.2** |
+| close rate | 99.7% | 99.7% | 92% | 97% |
+| walked away (no deal, per seed) | 0.3 | 0.3 | 8.7 | 2.7 |
+| attributor fines given (deals voided) | 0 | 4.3 | 24 | 14.7 |
+
+Conversations run **~8–9 turns** in free text, **faster (~7)** under a contract
+(draft-and-accept beats open haggling). A *walk-away* is a conversation where the two
+talked but never both declared DEAL. In free text they almost never walk away
+(≈99.7% close); the **lawyer** arm walks away most (8.7/seed) — that is the mechanism
+working, blocking vague commitments that never get pinned to a round — and the
+**contract** arm walks when the buyer declines the seller's draft.
 
 ### What the fair (one-good) comparison shows
 
