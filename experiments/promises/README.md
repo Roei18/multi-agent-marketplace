@@ -38,18 +38,28 @@ seller actually committed to:
 - **True** — committed to a round *and* delivered the good by it.
 - **False** — committed to a round but missed it (late or never).
 
-## The four arms
+## Roles and protocols
 
-All four are the **same market on the same supply** (matched RNG), every deal is for
-**one good**, and a closed deal locks the buyer for **one round** — so the arms are
-apples-to-apples. They differ only in how a promise is made and policed:
+Every protocol runs the **same market on the same supply** (matched RNG), every deal
+is for **one good**, and a closed deal locks the buyer for **one round** — so they are
+apples-to-apples. They differ only by two optional roles.
 
-| arm | what it adds |
+**Roles**
+- **Attributor** — after all rounds, reviews the record and **voids** every concrete
+  promise not delivered **on time** (late or never), striking it from the seller's
+  score.
+- **Lawyer** — at the point a DEAL would close, reviews the conversation and lets it
+  close **only if the seller made a concrete promise**; a vague one is blocked, with
+  one chance to pin a round.
+
+**Protocols**
+
+| protocol | what it is |
 |---|---|
-| **baseline** | free talk, no regulator. The natural rate of promising, breaking, vagueness. |
-| **attributor** | a regulator reads the record afterwards and **voids broken promises** (committed to a round, missed it) from the seller's score. Sellers know. |
-| **lawyer + attributor** | plus a **lawyer** that inspects each commitment *before the deal closes* and **blocks vague ones** — pin a round or no deal. |
-| **contract + attributor** | the deal is a **written contract for the one good by a round the seller drafts**; vagueness is impossible by construction. |
+| **baseline** | all free talk; a deal is just both sides declaring DEAL, no format. |
+| **attributor** | baseline + the attributor. |
+| **attributor + lawyer** | + the lawyer. |
+| **attributor + contract** | the deal is a **formatted contract for the one good by a round the seller drafts** — the buyer accepts it or not. Vagueness is impossible by construction. |
 
 ## How a promise is judged
 
