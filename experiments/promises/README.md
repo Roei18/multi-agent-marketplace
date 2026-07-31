@@ -14,23 +14,29 @@ Every number below can be re-derived by hand — see [Auditing](#auditing-every-
 
 ---
 
-## The setting, in plain terms
+## The setting
 
-- **Sellers** have a trickle of goods that arrives at random (a coin-flip process,
-  ~1.5 units/round on average, **nothing at all ~40% of rounds**). Crucially a seller
-  does **not** know how much it will get when it is talking — it must promise first.
-- **Buyers** compete to end the game owning the most goods. They shop by having a
-  private, free-text conversation with one seller at a time and, if happy, both
-  sides declare a **DEAL** (for **one good**). A buyer that closes a deal is locked
-  out of new deals for **one round** (an anti-spam guard, so a buyer can't sign
-  every round).
-- Nothing is structurally written down — no price or date, and **every deal is for
-  one good**. Whether a seller pins a **delivery time**, and how firmly, lives only
-  in the words. Unsold stock accumulates; no seller is ever eliminated.
+A market of **sellers** who supply one generic good and **buyers** who want to own
+as much of it as possible. Over **N rounds**, each buyer and seller negotiate
+one-to-one in free text and close **deals** — every deal is for **one good**, and
+what's negotiated is **when** it will arrive.
 
-Because supply is genuinely uncertain, a seller can be honestly *vague* ("as soon
-as I can, depending on my stock") instead of lying. Telling vagueness, a kept
-promise, and a broken promise apart is the whole game.
+A seller's goods arrive **randomly after each round**; only then can it fulfill its
+open deals, and if it can't cover them all, it picks whom to serve. It doesn't know
+how much it will get while it's still talking — so it has to **promise before it
+knows**.
+
+- **Sellers** compete to close the most deals.
+- **Buyers** compete to own the most goods by the end.
+
+A deal closes when **both sides declare a DEAL**. The DEAL itself carries no delivery
+time — **whether, and for which round, the seller committed lives in the words**.
+
+**Measuring a deal.** Afterwards we sort every deal into three groups by what the
+seller actually committed to:
+- **Vague** — never pinned a delivery round; nothing was promised, so the deal isn't binding.
+- **True** — committed to a round *and* delivered the good by it.
+- **False** — committed to a round but missed it (late or never).
 
 ## The four arms
 
