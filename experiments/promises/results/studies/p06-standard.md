@@ -1,9 +1,6 @@
 # Standard supply — p = 0.6
 
-The reference setting. Each seller draws goods geometrically with arrival probability **p = 0.6** (mean 1.5 goods/round, ~40% empty rounds). Over the game ~144 goods are produced against a maximum buyer demand of 96 (16 buyers × 6 deals), so **supply exceeds demand** — goods are not scarce, and a seller can be late at little cost to the buyer.
-
-> Note: these runs predate the per-deal delivery fix, so a few free-text buyers were over-served — `buyer top` here is inflated by ≤1 (true ceiling is 6). Re-run at p = 0.6 to refresh if an exact baseline is needed.
-
+The reference setting. Each seller draws goods geometrically with arrival probability **p = 0.6** (mean 1.5 goods/round, ~40% empty rounds). 
 **Setup:** 8 sellers × 16 buyers × 12 rounds, averaged over seeds [0, 1, 2]. Four arms; matched supply across arms within a seed. Pure post-hoc measurement — `python -m experiments.promises.studies`.
 
 ## Deterministic market measurements (no LLM)
