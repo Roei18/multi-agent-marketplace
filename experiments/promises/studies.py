@@ -136,7 +136,7 @@ def render(study: dict, arms: list[dict], seeds: list[int]) -> str:
     ]
     for t in range(len(arms[0]["series"])):
         rd = arms[0]["series"][t]["round"]
-        if all(a["series"][t]["deals"] == 0 for a in arms):
+        if round(sum(a["series"][t]["deals"] for a in arms)) == 0:  # skip near-empty rounds
             continue
         cells = " | ".join(f"{a['series'][t]['vague']} / {a['series'][t]['true']} / "
                            f"{a['series'][t]['false']}" for a in arms)
