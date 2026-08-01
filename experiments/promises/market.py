@@ -403,14 +403,18 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True) -> 
         # 4. handoff — allocate from accumulated stock toward open deals (1 unit each,
         # free text). Unsold units carry. Each delivered unit is logged with its round.
         for s in sellers:
+            # Allocate per DEAL, not per buyer: one buyer may hold several open deals
+            # with this seller (a backorder pile-up), and each is a separate 1-good
+            # obligation. Oldest deal first so backorders clear in order.
             mine = [d for d in deals if d.seller == s.id and d.deliverable(round_no)]
-            need = {d.buyer: d.quantity - d.delivered_qty for d in mine}
+            mine.sort(key=lambda d: (d.closed_round, d.id))
+            need = {d.id: d.quantity - d.delivered_qty for d in mine}
             total_need = sum(need.values())
-            grants: list[str] = []
+            grant_deals: list[Deal] = []
             if mine and s.stock > 0:
                 if s.stock >= total_need:
                     for d in mine:
-                        grants += [d.buyer] * need[d.buyer]
+                        grant_deals += [d] * need[d.id]
                 else:
                     ch: HonorChoice = await s.agent.fulfil(
                         rules=market_rules(scenario, round_no, len(sellers), side="seller"),
@@ -418,23 +422,30 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True) -> 
                         goods=s.stock,
                         history=seller_history(s.id, rounds + [rec], names),
                         options=owed_view(deals, s.id, buyers), n_deals=len(mine))
-                    left = dict(need)
+                    # The seller names BUYERS to honor; each mention fills that buyer's
+                    # oldest still-open deal (naming a buyer twice fills two of its deals).
+                    by_buyer: dict[str, list[Deal]] = {}
+                    for d in mine:
+                        by_buyer.setdefault(d.buyer, []).append(d)
+                    remaining = dict(need)
                     for bid in ch.honor:
                         bid = bid.strip().upper()
-                        if left.get(bid, 0) > 0 and len(grants) < s.stock:
-                            grants.append(bid)
-                            left[bid] -= 1
-            by_id = {d.buyer: d for d in mine}
-            for bid in grants:
-                d = by_id[bid]
-                b = buyers[bid]
+                        if len(grant_deals) >= s.stock:
+                            break
+                        for d in by_buyer.get(bid, []):
+                            if remaining[d.id] > 0:
+                                grant_deals.append(d)
+                                remaining[d.id] -= 1
+                                break
+            for d in grant_deals:
+                b = buyers[d.buyer]
                 b.owned += 1
                 s.units_sold += 1
                 s.stock -= 1
                 d.delivered_qty += 1
                 if d.delivered_qty >= d.quantity:
                     d.delivered_round = round_no
-                h = Handoff(round=round_no, seller=s.id, buyer=bid, deal_id=d.id,
+                h = Handoff(round=round_no, seller=s.id, buyer=d.buyer, deal_id=d.id,
                             waited=round_no - d.closed_round)
                 handoffs.append(h)
                 rec.handoffs.append(h)

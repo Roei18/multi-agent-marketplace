@@ -50,10 +50,12 @@ LABEL = {"baseline": "baseline", "attributor": "attributor",
 # "2-round-blocked" version (a closed deal also blocks the NEXT round, 96 deals,
 # closes odd rounds only). Both are single-good 8x16x12.
 LOCK = 1
+PROB = 0.6   # supply parameter of the standard runs; a study at another p is separate
 
 
 def _is_fair(r: RunResult) -> bool:
     return (r.n_sellers == 8 and r.n_rounds == 12
+            and abs(r.heads_prob - PROB) < 1e-9
             and all(d.quantity == 1 for d in r.deals)
             and all(d.lock_rounds == LOCK for d in r.deals))
 

@@ -36,7 +36,10 @@ RESULTS_DIR = Path(__file__).parent / "results"
 def save(r: RunResult) -> Path:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    p = RESULTS_DIR / f"{r.scenario}_s{r.seed}_{ts}.json"
+    # tag the supply parameter when it is not the 0.6 default, so studies at a
+    # different p never collide with (or contaminate) the standard-supply runs.
+    ptag = "" if abs(r.heads_prob - 0.6) < 1e-9 else f"_p{round(r.heads_prob * 100):02d}"
+    p = RESULTS_DIR / f"{r.scenario}_s{r.seed}{ptag}_{ts}.json"
     p.write_text(json.dumps(r.model_dump(mode="json"), indent=2))
     return p
 
@@ -91,6 +94,9 @@ async def main() -> None:
     ap.add_argument("--rounds", type=int, default=None)
     ap.add_argument("--max-messages", type=int, default=None)
     ap.add_argument("--attempts", type=int, default=None)
+    ap.add_argument("--p", type=float, default=None,
+                    help="arrival probability p for the geometric supply (overrides the "
+                    "scenario default of 0.6); lower p = scarcer goods")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--quiet", action="store_true")
     ap.add_argument("--check-supply", action="store_true")
@@ -111,6 +117,9 @@ async def main() -> None:
         over["max_messages"] = args.max_messages
     if args.attempts is not None:
         over["max_attempts_per_round"] = args.attempts
+    if args.p is not None:
+        n = over.get("n_sellers", s.n_sellers)
+        over["arrival_probs"] = (args.p,) * n
     if over:
         s = replace(s, **over)
 
