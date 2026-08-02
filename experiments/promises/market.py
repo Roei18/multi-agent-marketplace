@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import random
+import time
 from dataclasses import dataclass, field
 
 from .agents import (
@@ -30,6 +31,7 @@ from .agents import (
     review_commitment,
 )
 from .attributor import score_sellers, void_false_promises
+from .instrument import heartbeat
 from .scoring import build_measurements, score_deals
 from .models import (
     ApproachChoice,
@@ -285,6 +287,8 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True) -> 
     deals: list[Deal] = []
     handoffs: list[Handoff] = []
     rounds: list[RoundRecord] = []
+    start = time.time()
+    p0 = scenario.arrival_probs[0] if scenario.arrival_probs else 0.6
 
     for round_no in range(1, scenario.n_rounds + 1):
         rec = RoundRecord(round=round_no)
@@ -466,13 +470,19 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True) -> 
                   f"  round leader: {', '.join(leaders) or 'none'}")
 
         rounds.append(rec)
+        heartbeat(scenario.name, seed, p0, phase=f"round {round_no}", round_no=round_no,
+                  n_rounds=scenario.n_rounds, deals_closed=len(deals), start=start)
 
     # Measurement (Step 2): extract each promise (LLM, extraction only), then score
     # the verdict by arithmetic over the delivery log (no LLM). The contract arm
     # reads its verdict straight from the struct and skips extraction.
+    heartbeat(scenario.name, seed, p0, phase="measuring", round_no=scenario.n_rounds,
+              n_rounds=scenario.n_rounds, deals_closed=len(deals), start=start)
     await measure_promises(deals, rounds, sellers_by_id, names,
                            n_rounds=scenario.n_rounds, contract_mode=scenario.contract_mode,
                            verbose=verbose)
+    heartbeat(scenario.name, seed, p0, phase="done", round_no=scenario.n_rounds,
+              n_rounds=scenario.n_rounds, deals_closed=len(deals), start=start)
     return summarise(scenario, seed, sellers, buyers, deals, handoffs, rounds)
 
 

@@ -14,7 +14,7 @@ Later arms add: `extract_promise` (Step 2), the lawyer (Step 4), contract drafti
 
 from __future__ import annotations
 
-from experiments.dealrace.llm import call_llm
+from experiments.promises.instrument import call_llm  # wrapped: counts calls, flags slow ones
 from .models import (
     ApproachChoice,
     BuyerTurn,
