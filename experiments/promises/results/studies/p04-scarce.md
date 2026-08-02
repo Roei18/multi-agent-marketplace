@@ -1,6 +1,6 @@
 # Scarce supply — p = 0.4
 
-Lower the arrival probability to **p = 0.4** (mean 0.67 goods/round, ~60% empty rounds). Over the game only ~64 goods are produced against a maximum demand of 96, so **demand exceeds supply** — being late or vague now has a real cost, because a good handed to one buyer is one another cannot get. Everything else (2-round buyer lock, one good per deal, matched supply RNG) is unchanged from p = 0.6. Includes the per-deal delivery fix (a buyer holding several open deals with one seller is no longer over-served).
+Lower the arrival probability to **p = 0.4** (mean 0.67 goods/round, ~60% empty rounds). 
 
 **Setup:** 8 sellers × 16 buyers × 12 rounds, seed 0. Four arms; matched supply across arms within a seed. Pure post-hoc measurement — `python -m experiments.promises.studies`.
 
