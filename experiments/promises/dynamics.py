@@ -142,6 +142,23 @@ def analyze(r: RunResult) -> dict:
             key = (d.seller, d.buyer)
             first_letdown[key] = min(first_letdown.get(key, d.closed_round), d.closed_round)
 
+    # repeat CLOSINGS with the same seller, split by that seller's delivery record to
+    # this buyer at the time of the repeat: did they close again with a seller who had
+    # already delivered to them (kept/truthful), or one who had a still-undelivered
+    # prior deal (broke/"lying")? Mechanical — from the delivery log, no verdict.
+    repeat_kept = repeat_broke = 0
+    prior: dict[tuple, list] = {}
+    for d in sorted(r.deals, key=lambda x: (x.closed_round, x.id)):
+        key = (d.buyer, d.seller)
+        priors = prior.get(key, [])
+        if priors:  # a 2nd+ deal with the same seller
+            delivered_before = any(0 <= pd.delivered_round < d.closed_round for pd in priors)
+            if delivered_before:
+                repeat_kept += 1
+            else:  # came back to a seller who had not yet delivered anything
+                repeat_broke += 1
+        prior.setdefault(key, []).append(d)
+
     # approach-level rates: of all approaches, share to a prior deliverer / prior let-down
     appr_total = ret_deliv = ret_letdown = 0
     for ng in negs:
@@ -209,6 +226,7 @@ def analyze(r: RunResult) -> dict:
         "reapproach_after_delivery": _rate(back_d, pairs_d),
         "reapproach_after_letdown": _rate(back_l, pairs_l),
         "pairs_delivered": pairs_d, "pairs_letdown": pairs_l,
+        "repeat_kept": repeat_kept, "repeat_broke": repeat_broke,
         "fines": fines,
         # lawyer declining
         "lw_reviewed": lw_reviewed, "lw_declines": lw_declines, "lw_clean": lw_clean,

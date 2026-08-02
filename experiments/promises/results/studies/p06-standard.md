@@ -1,6 +1,7 @@
 # Standard supply — p = 0.6
 
-The reference setting. Each seller draws goods geometrically with arrival probability **p = 0.6** (mean 1.5 goods/round, ~40% empty rounds). 
+The reference setting. Each seller draws goods geometrically with arrival probability **p = 0.6** (mean 1.5 goods/round, ~40% empty rounds).
+
 **Setup:** 8 sellers × 16 buyers × 12 rounds, averaged over seeds [0, 1, 2]. Four arms; matched supply across arms within a seed. Pure post-hoc measurement — `python -m experiments.promises.studies`.
 
 ## Deterministic market measurements (no LLM)
@@ -14,6 +15,22 @@ The reference setting. Each seller draws goods geometrically with arrival probab
 | buyer score — average | 5.71 | 5.77 | 5.5 | 5.08 |
 
 *Seller score = net deals (closed − voided); buyer score = goods owned. Top = the winner; average = across all 8 sellers / 16 buyers.*
+
+**Negotiation shape** — a buyer gets ≤3 conversations/round; the one it closes in tells us how much it had to search. Conversation length is turns spoken (cap 12).
+
+| | baseline | attributor | lawyer+attr | contract+attr |
+|---|---|---|---|---|
+| closed on 1st conversation % | 100 | 100 | 92 | 97 |
+| closed on 2nd % | 1 | 1 | 24 | 8 |
+| closed on 3rd % | 0 | 0 | 0 | 0 |
+| conversation length (mean turns) | 8.47 | 8.58 | 8.53 | 7.2 |
+
+**Repeat business** — a buyer that closes again with the *same* seller, split by whether that seller had already delivered to it (kept) or still owed it an undelivered good (broke). Mechanical, from the delivery log.
+
+| | baseline | attributor | lawyer+attr | contract+attr |
+|---|---|---|---|---|
+| repeat close — seller HAD delivered (kept) | 22.33 | 18.67 | 23 | 16 |
+| repeat close — seller had NOT (broke) | 4 | 3.33 | 3.67 | 5 |
 
 ## LLM-assisted measurements (vagueness judge)
 

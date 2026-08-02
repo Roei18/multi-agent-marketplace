@@ -1,6 +1,6 @@
 # Scarce supply — p = 0.4
 
-Lower the arrival probability to **p = 0.4** (mean 0.67 goods/round, ~60% empty rounds). 
+Lower the arrival probability to **p = 0.4** (mean 0.67 goods/round, ~60% empty rounds).
 
 **Setup:** 8 sellers × 16 buyers × 12 rounds, seed 0. Four arms; matched supply across arms within a seed. Pure post-hoc measurement — `python -m experiments.promises.studies`.
 
@@ -15,6 +15,22 @@ Lower the arrival probability to **p = 0.4** (mean 0.67 goods/round, ~60% empty 
 | buyer score — average | 3 | 3 | 3 | 2.44 |
 
 *Seller score = net deals (closed − voided); buyer score = goods owned. Top = the winner; average = across all 8 sellers / 16 buyers.*
+
+**Negotiation shape** — a buyer gets ≤3 conversations/round; the one it closes in tells us how much it had to search. Conversation length is turns spoken (cap 12).
+
+| | baseline | attributor | lawyer+attr | contract+attr |
+|---|---|---|---|---|
+| closed on 1st conversation % | 100 | 100 | 91 | 99 |
+| closed on 2nd % | 0 | 0 | 8 | 1 |
+| closed on 3rd % | 0 | 0 | 1 | 0 |
+| conversation length (mean turns) | 8.97 | 9.06 | 9.76 | 7.88 |
+
+**Repeat business** — a buyer that closes again with the *same* seller, split by whether that seller had already delivered to it (kept) or still owed it an undelivered good (broke). Mechanical, from the delivery log.
+
+| | baseline | attributor | lawyer+attr | contract+attr |
+|---|---|---|---|---|
+| repeat close — seller HAD delivered (kept) | 4 | 6 | 14 | 6 |
+| repeat close — seller had NOT (broke) | 13 | 10 | 14 | 13 |
 
 ## LLM-assisted measurements (vagueness judge)
 

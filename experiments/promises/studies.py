@@ -88,7 +88,26 @@ def _rate(x, d):
     return round(x / d, 3) if d else 0.0
 
 
-def render(study: dict, arms: list[dict], seeds: list[int]) -> str:
+def existing_desc(path: Path) -> str | None:
+    """The human-editable description = text between the '# title' line and the
+    '**Setup:**' line. Preserved on regeneration so hand-edited prose is not clobbered
+    (the generator owns the tables, the human owns the description)."""
+    if not path.exists():
+        return None
+    out, started = [], False
+    for ln in path.read_text().splitlines():
+        if ln.startswith("# ") and not started:
+            started = True
+            continue
+        if not started:
+            continue
+        if ln.startswith("**Setup:**"):
+            return "\n".join(out).strip() or None
+        out.append(ln)
+    return None
+
+
+def render(study: dict, arms: list[dict], seeds: list[int], desc: str) -> str:
     cols = " | ".join(LABEL.get(a["scenario"], a["scenario"]) for a in arms)
     sep = "|".join(["---"] * (len(arms) + 1))
     seed_txt = (f"seed {seeds[0]}" if len(seeds) == 1
@@ -100,7 +119,7 @@ def render(study: dict, arms: list[dict], seeds: list[int]) -> str:
     L = [
         f"# {study['title']}",
         "",
-        study["desc"],
+        desc,
         "",
         f"**Setup:** 8 sellers × 16 buyers × 12 rounds, {seed_txt}. Four arms; matched "
         "supply across arms within a seed. Pure post-hoc measurement — "
@@ -117,6 +136,26 @@ def render(study: dict, arms: list[dict], seeds: list[int]) -> str:
         "",
         "*Seller score = net deals (closed − voided); buyer score = goods owned. "
         "Top = the winner; average = across all 8 sellers / 16 buyers.*",
+        "",
+        "**Negotiation shape** — a buyer gets ≤3 conversations/round; the one it closes "
+        "in tells us how much it had to search. Conversation length is turns spoken (cap 12).",
+        "",
+        f"| | {cols} |", f"|{sep}|",
+        row("closed on 1st conversation %",
+            lambda a: round(a["closed_on_1st_rate"] * 100)),
+        row("closed on 2nd %",
+            lambda a: round(100 * _rate(a["attempts_hist"].get(2, 0), a["n_closed"]))),
+        row("closed on 3rd %",
+            lambda a: round(100 * _rate(a["attempts_hist"].get(3, 0), a["n_closed"]))),
+        row("conversation length (mean turns)", lambda a: a["len_all_mean"]),
+        "",
+        "**Repeat business** — a buyer that closes again with the *same* seller, split by "
+        "whether that seller had already delivered to it (kept) or still owed it an "
+        "undelivered good (broke). Mechanical, from the delivery log.",
+        "",
+        f"| | {cols} |", f"|{sep}|",
+        row("repeat close — seller HAD delivered (kept)", lambda a: a["repeat_kept"]),
+        row("repeat close — seller had NOT (broke)", lambda a: a["repeat_broke"]),
         "",
         "## LLM-assisted measurements (vagueness judge)",
         "",
@@ -184,7 +223,8 @@ def build(slug: str) -> Path:
     arms = _avg_arms(per_seed)
     STUDIES_DIR.mkdir(parents=True, exist_ok=True)
     out = STUDIES_DIR / f"{slug}.md"
-    out.write_text(render(study, arms, seeds))
+    desc = existing_desc(out) or study["desc"]  # keep hand-edited prose if present
+    out.write_text(render(study, arms, seeds, desc))
     return out
 
 
