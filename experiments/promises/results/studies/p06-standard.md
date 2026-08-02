@@ -42,6 +42,14 @@ How the closed deals split into vague / true / false. `true`/`false` need the ju
 | true % | 12 | 12 | 69 | 85 |
 | false % | 2 | 4 | 25 | 15 |
 
+**Buyer trust** (0–100, LLM-assisted, blind to outcome) — at the close of each conversation the buyer rated how much it trusted the seller to deliver. *Warranted?* compares that trust for deals that DID vs did NOT deliver — a gap where trust stays high on undelivered deals is **over-trust**.
+
+| | baseline | attributor | lawyer+attr | contract+attr |
+|---|---|---|---|---|
+| mean trust | 85.2 | 84.0 | 88.6 | 88.2 |
+| trust — deals that delivered | 85.1 | 84.3 | 88.4 | 88.3 |
+| trust — deals that did NOT | 85.4 | 81.7 | 90.0 | 88.1 |
+
 **Per-round distribution** (deals close in odd rounds only; read vague / true / false):
 
 | round | baseline | attributor | lawyer+attr | contract+attr |

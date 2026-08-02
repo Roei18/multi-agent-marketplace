@@ -34,6 +34,7 @@ if str(_REPO_ROOT) not in sys.path:
 
 from experiments.promises.dynamics import ARMS, LABEL, analyze, _avg_arms
 from experiments.promises.models import RunResult
+from experiments.promises import trust as trust_mod
 
 RESULTS_DIR = Path(__file__).parent / "results"
 STUDIES_DIR = RESULTS_DIR / "studies"
@@ -168,6 +169,22 @@ def render(study: dict, arms: list[dict], seeds: list[int], desc: str) -> str:
         row("true %", lambda a: round(a["true_rate"] * 100)),
         row("false %", lambda a: round(a["false_rate"] * 100)),
         "",
+    ]
+    if any(a.get("trust") for a in arms):
+        tr = lambda a, k: (a["trust"][k] if a.get("trust") and a["trust"][k] is not None else "—")
+        L += [
+            "**Buyer trust** (0–100, LLM-assisted, blind to outcome) — at the close of each "
+            "conversation the buyer rated how much it trusted the seller to deliver. "
+            "*Warranted?* compares that trust for deals that DID vs did NOT deliver — a gap "
+            "where trust stays high on undelivered deals is **over-trust**.",
+            "",
+            f"| | {cols} |", f"|{sep}|",
+            row("mean trust", lambda a: tr(a, "mean_trust")),
+            row("trust — deals that delivered", lambda a: tr(a, "trust_if_delivered")),
+            row("trust — deals that did NOT", lambda a: tr(a, "trust_if_missed")),
+            "",
+        ]
+    L += [
         "**Per-round distribution** (deals close in odd rounds only; read vague / true / false):",
         "",
         "| round | " + " | ".join(LABEL.get(a["scenario"], a["scenario"]) for a in arms) + " |",
@@ -213,14 +230,20 @@ def build(slug: str) -> Path:
     study = STUDIES[slug]
     p, seeds = study["p"], study["seeds"]
     per_seed = []
+    paths0 = None
     for sd in seeds:
         paths = [_select(a, sd, p) for a in ARMS]
         if any(x is None for x in paths):
             miss = [a for a, x in zip(ARMS, paths) if x is None]
             raise SystemExit(f"{slug}: missing runs for {miss} at p={p}, seed {sd}")
+        if paths0 is None:
+            paths0 = paths
         per_seed.append([analyze(RunResult.model_validate(json.loads(x.read_text())))
                          for x in paths])
     arms = _avg_arms(per_seed)
+    # buyer-trust (from the seed-0 files; present only where trust.py has been run)
+    for arm_dict, path in zip(arms, paths0):
+        arm_dict["trust"] = trust_mod.aggregate(path)
     STUDIES_DIR.mkdir(parents=True, exist_ok=True)
     out = STUDIES_DIR / f"{slug}.md"
     desc = existing_desc(out) or study["desc"]  # keep hand-edited prose if present
