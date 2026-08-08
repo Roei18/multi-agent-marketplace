@@ -99,8 +99,16 @@ def analyze(r: RunResult) -> dict:
                      "false_rate": _rate(overall["false"], nd)}
 
     # ---- Group 2: social welfare — top vs average spread ----
+    # Buyer holdings recomputed from the delivery log as the count of a buyer's
+    # DELIVERED deals (each deal is one good). This equals b.owned for runs with the
+    # per-deal delivery fix, and corrects the pre-fix over-delivery (a buyer with
+    # several open deals to one seller could be handed >1 unit on a single deal).
+    delivered_by_buyer: dict[str, int] = {}
+    for d in r.deals:
+        if d.delivered_round >= 0:
+            delivered_by_buyer[d.buyer] = delivered_by_buyer.get(d.buyer, 0) + 1
     seller_scores = sorted((s.net_score for s in r.sellers), reverse=True)
-    buyer_scores = sorted((b.owned for b in r.buyers), reverse=True)
+    buyer_scores = sorted((delivered_by_buyer.get(b.id, 0) for b in r.buyers), reverse=True)
 
     def spread(xs):
         top = xs[0] if xs else 0
@@ -213,6 +221,8 @@ def analyze(r: RunResult) -> dict:
         # group 3
         "attempts_mean": round(statistics.mean(close_attempts), 2) if close_attempts else 0,
         "closed_on_1st_rate": _rate(attempt_hist.get(1, 0), len(close_attempts)),
+        "closed_on_2nd_rate": _rate(attempt_hist.get(2, 0), len(close_attempts)),
+        "closed_on_3rd_rate": _rate(attempt_hist.get(3, 0), len(close_attempts)),
         "attempts_hist": attempt_hist,
         "distinct_mean": round(statistics.mean(distinct_per_buyer), 2) if distinct_per_buyer else 0,
         "len_all_mean": round(statistics.mean(len_all), 2) if len_all else 0,

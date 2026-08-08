@@ -144,10 +144,8 @@ def render(study: dict, arms: list[dict], seeds: list[int], desc: str) -> str:
         f"| | {cols} |", f"|{sep}|",
         row("closed on 1st conversation %",
             lambda a: round(a["closed_on_1st_rate"] * 100)),
-        row("closed on 2nd %",
-            lambda a: round(100 * _rate(a["attempts_hist"].get(2, 0), a["n_closed"]))),
-        row("closed on 3rd %",
-            lambda a: round(100 * _rate(a["attempts_hist"].get(3, 0), a["n_closed"]))),
+        row("closed on 2nd %", lambda a: round(a["closed_on_2nd_rate"] * 100)),
+        row("closed on 3rd %", lambda a: round(a["closed_on_3rd_rate"] * 100)),
         row("conversation length (mean turns)", lambda a: a["len_all_mean"]),
         "",
         "**Repeat business** — a buyer that closes again with the *same* seller, split by "
