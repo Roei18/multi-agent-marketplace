@@ -33,13 +33,14 @@ from experiments.promises.scoring import audit_table
 RESULTS_DIR = Path(__file__).parent / "results"
 
 
-def save(r: RunResult) -> Path:
+def save(r: RunResult, tag: str = "") -> Path:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     # tag the supply parameter when it is not the 0.6 default, so studies at a
     # different p never collide with (or contaminate) the standard-supply runs.
     ptag = "" if abs(r.heads_prob - 0.6) < 1e-9 else f"_p{round(r.heads_prob * 100):02d}"
-    p = RESULTS_DIR / f"{r.scenario}_s{r.seed}{ptag}_{ts}.json"
+    mtag = f"_{tag}" if tag else ""     # optional label (e.g. a model name for probes)
+    p = RESULTS_DIR / f"{r.scenario}_s{r.seed}{mtag}{ptag}_{ts}.json"
     p.write_text(json.dumps(r.model_dump(mode="json"), indent=2))
     return p
 
@@ -98,6 +99,12 @@ async def main() -> None:
                     help="arrival probability p for the geometric supply (overrides the "
                     "scenario default of 0.6); lower p = scarcer goods")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--buyer-model", default=None,
+                    help="override the model for BUYER agents only (probe, e.g. a stronger model)")
+    ap.add_argument("--seller-model", default=None,
+                    help="override the model for SELLER agents only (probe)")
+    ap.add_argument("--tag", default="",
+                    help="label inserted into the saved filename (e.g. a model name)")
     ap.add_argument("--quiet", action="store_true")
     ap.add_argument("--check-supply", action="store_true")
     ap.add_argument("--audit", action="store_true",
@@ -132,8 +139,12 @@ async def main() -> None:
           f"{lo}-{hi} LLM calls.")
     print(f"{s.name} — {s.description} (seed={args.seed})")
 
-    result = await run_market(s, seed=args.seed, verbose=not args.quiet)
-    path = save(result)
+    if args.buyer_model or args.seller_model:
+        print(f"MODEL OVERRIDE — buyer: {args.buyer_model or '(default)'}, "
+              f"seller: {args.seller_model or '(default)'}")
+    result = await run_market(s, seed=args.seed, verbose=not args.quiet,
+                              buyer_model=args.buyer_model, seller_model=args.seller_model)
+    path = save(result, tag=args.tag)
     report(result)
     if args.audit:
         print_audit(result)

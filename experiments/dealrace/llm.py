@@ -35,13 +35,17 @@ def _llm_kwargs() -> dict:
     return _kwargs
 
 
-async def call_llm(prompt: str, response_format: type[TModel], attempts: int = 5) -> TModel:
+async def call_llm(prompt: str, response_format: type[TModel], attempts: int = 5,
+                   model: str | None = None) -> TModel:
+    kw = _llm_kwargs()
+    if model:                      # per-call model override (e.g. a stronger buyer/seller)
+        kw = {**kw, "model": model}
     delay = 3.0
     last: Exception | None = None
     for _ in range(attempts):
         try:
             result, _usage = await generate(
-                prompt, response_format=response_format, **_llm_kwargs()
+                prompt, response_format=response_format, **kw
             )
             return result
         except Exception as e:  # rate limits, malformed output, transient API errors

@@ -74,6 +74,8 @@ def _select(arm: str, seed: int, p: float) -> Path | None:
     hits = sorted(RESULTS_DIR.glob(f"{arm}_s{seed}_*.json"),
                   key=lambda q: q.stat().st_mtime, reverse=True)
     for q in hits:
+        if "_gpt" in q.name:   # skip model-tagged probe/sweep runs (e.g. _gpt4o, _gpt5)
+            continue
         try:
             r = RunResult.model_validate(json.loads(q.read_text()))
         except Exception:

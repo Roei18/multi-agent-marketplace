@@ -192,6 +192,7 @@ Buyers — goods owned (points):
 class SellerAgent:
     def __init__(self, sid: str, name: str, blurb: str, p: float):
         self.id, self.name, self.blurb, self.p = sid, name, blurb, p
+        self.model: str | None = None   # optional per-role model override (probe)
 
     def _supply(self) -> str:
         mean = self.p / (1 - self.p)
@@ -262,7 +263,7 @@ Every deal you close is a step toward surviving; a seller who sits idle is finis
 {render(conv, self.id, buyer_name)}
 
 It is your turn. Return private_reasoning (never seen by them), {fields}"""
-        t: SellerTurn = await call_llm(prompt, SellerTurn)
+        t: SellerTurn = await call_llm(prompt, SellerTurn, model=self.model)
         u = Utterance(speaker=self.id, private_reasoning=t.private_reasoning,
                       message=t.message, declare_deal=t.declare_deal and not contract_mode,
                       continue_conversation=t.continue_conversation)
@@ -283,7 +284,7 @@ hand over STAY IN YOUR STOCK for later rounds (nothing is destroyed). Nothing
 compels you to serve anyone in particular.
 
 Return private_reasoning and honor — a list of buyer ids (possibly empty)."""
-        return await call_llm(prompt, HonorChoice)
+        return await call_llm(prompt, HonorChoice, model=self.model)
 
 
 # --------------------------------------------------------------------------
@@ -294,6 +295,7 @@ Return private_reasoning and honor — a list of buyer ids (possibly empty)."""
 class BuyerAgent:
     def __init__(self, bid: str, name: str, scenario: Scenario):
         self.id, self.name, self.scenario = bid, name, scenario
+        self.model: str | None = None   # optional per-role model override (probe)
 
     def _base(self, rules, board, progress, history) -> str:
         return f"""\
@@ -330,7 +332,7 @@ Still in the market:
 {chr(10).join(options)}
 
 Return private_reasoning (be specific about what you are going on) and seller."""
-        return await call_llm(prompt, ApproachChoice)
+        return await call_llm(prompt, ApproachChoice, model=self.model)
 
     async def turn(self, *, rules, board, progress, history, seller_name, conv,
                    max_messages, contract_mode=False) -> Utterance:
@@ -357,7 +359,7 @@ Talk however you see fit. What you want is goods, as many and as soon as possibl
 {render(conv, self.id, seller_name)}
 
 It is your turn. Return private_reasoning (never seen by them), {fields}"""
-        t: BuyerTurn = await call_llm(prompt, BuyerTurn)
+        t: BuyerTurn = await call_llm(prompt, BuyerTurn, model=self.model)
         return Utterance(speaker=self.id, private_reasoning=t.private_reasoning,
                          message=t.message, declare_deal=t.declare_deal and not contract_mode,
                          deal_rounds=int(t.deal_rounds),

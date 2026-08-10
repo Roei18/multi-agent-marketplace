@@ -270,7 +270,9 @@ async def _lawyer_gate(conv, sst, bst, scenario, round_no, register, seller_msg,
 # --------------------------------------------------------------------------
 
 
-async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True) -> RunResult:
+async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
+                     buyer_model: str | None = None,
+                     seller_model: str | None = None) -> RunResult:
     # Two independent random processes, each seeded the same, so supply is NOT
     # perturbed by how the negotiation consumes randomness — baseline and every
     # other arm face the SAME per-round supply at a given seed.
@@ -279,9 +281,13 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True) -> 
     sellers = [SellerState(SellerAgent(sid, nm, bl, p))
                for (sid, nm, bl), p in zip(SELLERS[:scenario.n_sellers],
                                            scenario.arrival_probs, strict=True)]
+    for s in sellers:
+        s.agent.model = seller_model     # None = keep the default model
     sellers_by_id = {s.id: s for s in sellers}
     buyers = {bid: BuyerState(BuyerAgent(bid, nm, scenario))
               for bid, nm in BUYERS[:scenario.n_buyers]}
+    for b in buyers.values():
+        b.agent.model = buyer_model
     names = {b.id: b.agent.name for b in buyers.values()}
 
     deals: list[Deal] = []

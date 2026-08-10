@@ -63,6 +63,8 @@ def _is_fair(r: RunResult) -> bool:
 def newest_fair(arm: str, seed: int | None = None) -> Path | None:
     pat = f"{arm}_s{seed}_*.json" if seed is not None else f"{arm}_s*.json"
     for p in sorted(RESULTS_DIR.glob(pat), key=lambda p: p.stat().st_mtime, reverse=True):
+        if "_gpt" in p.name:   # skip model-tagged runs (e.g. _gpt4o, _gpt5)
+            continue
         try:
             if _is_fair(RunResult.model_validate(json.loads(p.read_text()))):
                 return p
