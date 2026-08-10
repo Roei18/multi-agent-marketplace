@@ -1,5 +1,5 @@
 #!/bin/bash
-# Full gpt-4o sweep: 3 supply levels x 2 seeds x 4 arms = 24 runs at 8x16x12.
+# gpt-4o sweep: 3 supply levels x SEED 0 x 4 arms = 12 runs at 8x16x12.
 # EVERYTHING runs on gpt-4o (agents AND judge) via LLM_MODEL; files tagged 'gpt4o'.
 # The 4 arms of each (seed,p) run in PARALLEL (each process is concurrency=1, so that's
 # only 4 concurrent gpt-4o calls -- safe, and ~4x faster than serial). Seed-outer, so
@@ -10,7 +10,7 @@ cd "$REPO" || exit 1
 PY="$REPO/.venv/bin/python"
 export LLM_MODEL="openai/gpt-4o"
 R=experiments/promises/results
-for seed in 0 1; do
+for seed in 0; do
   for p in 0.6 0.5 0.4; do
     case "$p" in
       0.6) g="_[0-9]";; 0.5) g="_p50_";; 0.4) g="_p40_";;
