@@ -34,6 +34,10 @@ round and the next** (so each buyer closes one deal every two rounds)
 - **Lawyer** — at the point a DEAL would close, reviews the conversation and lets it
   close **only if the seller made a concrete promise**; a vague one is blocked, with
   one chance to pin a round.
+- **Public reviews** — the instant a deal's good arrives, the buyer who received it
+  publicly **rates the seller 1–5**, from their own conversation and how promptly it
+  showed up. Every seller's running average is visible on the public board (and to a
+  buyer choosing who to approach) for the rest of the game.
 
 **Protocols**
 
@@ -43,6 +47,7 @@ round and the next** (so each buyer closes one deal every two rounds)
 | **attributor** | baseline + the attributor. |
 | **attributor + lawyer** | + the lawyer. |
 | **attributor + contract** | the deal is a **formatted contract for the one good by a round the seller drafts** — the buyer accepts it or not. Vagueness is impossible by construction. |
+| **reviews** | baseline + public buyer reviews (no attributor, lawyer, or contract). |
 
 ## How a promise is judged
 
@@ -76,6 +81,31 @@ recomputes every verdict from the raw log with **zero model calls** to prove it
 (this fixes the old `dealrace` judge, whose one-shot LLM verdict contradicted its
 own inputs). In the contract arm there is no LLM step — `promised_round` is the
 contract's `by_round`, read straight from the struct, so vague is impossible.
+
+## How a review is written (reviews arm)
+
+Reviews are a **separate, additive** instrument — they do not touch the vague/true/
+false verdict pipeline above, which runs identically whether or not reviews are on.
+
+Unlike `judge_vagueness` (an impartial post-hoc judge blind to the outcome), a review
+**is the buyer's own opinion**, written live, the instant `delivered_round` is set on
+its deal:
+
+1. The buyer is shown its own negotiation transcript with that seller, plus what
+   actually happened — the round it declared the deal in and the round the good
+   arrived.
+2. It returns a **1–5 score** and a one-sentence public comment (`ReviewJudgment` in
+   `models.py`; `BuyerAgent.review` in `agents.py`).
+3. The score is written onto the `Deal` (`review_score`, `review_comment`,
+   `review_reasoning`) and immediately factors into that seller's running public
+   average — shown on the board every subsequent turn, and in the options a buyer sees
+   when choosing who to approach.
+
+A deal that never delivers is never reviewed (nothing arrived to review) — those are
+exactly the deals the arithmetic verdict above calls `false-never`. Aggregate review
+stats (`reviews_given`, `review_avg`, and the average split by verdict) land in
+`RunResult.measurements` alongside the existing vagueness/true/false rates, computed by
+`build_review_measurements` in `scoring.py`.
 
 ---
 
@@ -218,13 +248,21 @@ to commit up front:
 # free, no LLM — confirm supply is seed-stable
 python -m experiments.promises.run --check-supply --sellers 8 --buyers 16 --rounds 12
 
-# one arm (scenarios: baseline | attributor | lawyer_attributor | contract_attributor)
+# one arm (scenarios: baseline | attributor | lawyer_attributor | contract_attributor | reviews)
 python -m experiments.promises.run --scenario baseline --sellers 8 --buyers 16 --rounds 12 --seed 0
+
+# reviews arm
+python -m experiments.promises.run --scenario reviews --sellers 8 --buyers 16 --rounds 12 --seed 0
 
 # the two comparison tables across the newest run of each arm
 python -m experiments.promises.compare       # promise-distribution ratios
 python -m experiments.promises.equilibrium    # convergence, return-to-deliverer, welfare
 ```
+
+`compare.py`/`equilibrium.py`/`dynamics.py` currently hardcode the four original arms'
+column order (`ORDER`/`LABEL` in `compare.py`); they need a `"reviews"` entry added
+before a `reviews` run will show up in those tables — `run.py`, `RunResult.measurements`,
+and the public board all already support it standalone.
 
 ## Auditing every number
 
@@ -238,10 +276,13 @@ python -m experiments.promises.equilibrium    # convergence, return-to-deliverer
 
 ## Files
 
-- `market.py` — the round loop (negotiate → declare → draw supply → hand off → score).
-- `agents.py` — seller/buyer/lawyer prompts; `judge_vagueness` (measurement).
-- `scoring.py` — the arithmetic verdict + invariants + all ratio metrics.
+- `market.py` — the round loop (negotiate → declare → draw supply → hand off → score);
+  `write_review` fires the buyer's public rating at the point a good is handed off.
+- `agents.py` — seller/buyer/lawyer prompts; `judge_vagueness` (measurement);
+  `BuyerAgent.review` (the reviews arm's public rating).
+- `scoring.py` — the arithmetic verdict + invariants + all ratio metrics, including
+  `build_review_measurements` for the reviews arm.
 - `attributor.py` — voids broken promises; seller net = deals − voided.
-- `scenarios.py` — the four arms; `models.py` — the records.
+- `scenarios.py` — the five arms; `models.py` — the records.
 - `compare.py` / `equilibrium.py` / `rescore.py` / `remeasure.py` / `vague_dump.py`
   — post-hoc analysis and auditing (no market changes).

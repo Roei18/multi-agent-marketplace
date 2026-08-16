@@ -1,11 +1,12 @@
 """Cast and knobs for the four arms. See DESIGN.md.
 
-No seller elimination: all sellers play every round. The four arms differ only in
-how a commitment is policed:
+No seller elimination: all sellers play every round. The arms differ only in
+how a commitment is policed (or, for `reviews`, publicly reputed):
   baseline            free talk, no regulator, no gate
   attributor          + a regulator voids false promises  (Step 3)
   lawyer_attributor   + a lawyer blocks vague commitments at close  (Step 4)
   contract_attributor the deal is a structured {quantity, by_round}  (Step 5)
+  reviews             + buyers publicly rate sellers 1-5 on delivery  (Step 6)
 
 Only `baseline` is registered until each later arm's step lands, so nothing runs
 half-wired.
@@ -57,6 +58,7 @@ class Scenario:
     apply_attributor: bool = False    # a regulator voids false promises (Step 3)
     use_lawyer: bool = False          # a lawyer blocks vague commitments at close (Step 4)
     contract_mode: bool = False       # a deal is a structured {quantity, by_round} (Step 5)
+    enable_reviews: bool = False      # buyers publicly rate sellers 1-5 on delivery (Step 6)
     # Standard across ALL arms (so the comparison is apples-to-apples):
     single_round_lock: bool = True    # a closed deal locks the buyer out for exactly ONE round
                                       # (an anti-spam guard), not until the delivery deadline
@@ -111,6 +113,14 @@ SCENARIOS: dict[str, Scenario] = {
         "construction.",
         apply_attributor=True,
         contract_mode=True,
+    ),
+    "reviews": Scenario(
+        name="reviews",
+        description="Same market as baseline, but the instant a good arrives the buyer "
+        "publicly rates the seller 1-5, based on their conversation and how promptly it "
+        "showed up. Sellers know they can be reviewed; every buyer sees every seller's "
+        "running average rating before choosing who to approach.",
+        enable_reviews=True,
     ),
 }
 

@@ -32,7 +32,7 @@ from .agents import (
 )
 from .attributor import score_sellers, void_false_promises
 from .instrument import heartbeat
-from .scoring import build_measurements, score_deals
+from .scoring import build_measurements, build_review_measurements, score_deals
 from .models import (
     ApproachChoice,
     BuyerSummary,
@@ -101,6 +101,9 @@ def estimate_llm_calls(s: Scenario) -> tuple[int, int]:
     hi_convs = s.n_buyers * s.max_attempts_per_round * s.n_rounds
     lo = lo_convs * 2 + s.n_sellers * s.n_rounds + lo_convs        # + extractor
     hi = hi_convs * (s.max_messages + 1) + s.n_sellers * s.n_rounds + hi_convs
+    if s.enable_reviews:                                            # + one review per delivery
+        lo += lo_convs
+        hi += hi_convs
     return lo, hi
 
 
@@ -109,13 +112,56 @@ def estimate_llm_calls(s: Scenario) -> tuple[int, int]:
 # --------------------------------------------------------------------------
 
 
-def seller_rows(sellers: list[SellerState]) -> list[str]:
-    return [f"  {s.id} {s.name:22s} {s.units_sold} handed over (total)" for s in sellers]
+def seller_rating_suffix(s: SellerState, deals: list[Deal]) -> str:
+    """Reviews arm only: each seller's live public rating (average `review_score` over
+    its delivered deals so far), as shown on the public board and to approaching buyers."""
+    scores = [d.review_score for d in deals if d.seller == s.id and d.review_score is not None]
+    if not scores:
+        return ", rating: no reviews yet"
+    avg = sum(scores) / len(scores)
+    return f", rating {avg:.1f}/5 ({len(scores)} review{'s' if len(scores) != 1 else ''})"
+
+
+def seller_rows(sellers: list[SellerState], deals: list[Deal] | None = None) -> list[str]:
+    """`deals` is passed only in the reviews arm, to show each seller's live public
+    rating alongside its board line."""
+    return [
+        f"  {s.id} {s.name:22s} {s.units_sold} handed over (total)"
+        + (seller_rating_suffix(s, deals) if deals is not None else "")
+        for s in sellers
+    ]
 
 
 def buyer_rows(buyers: dict[str, BuyerState]) -> list[str]:
     ranked = sorted(buyers.values(), key=lambda b: (-b.owned, b.id))
     return [f"  {b.id} {b.agent.name:22s} owns {b.owned}" for b in ranked]
+
+
+def find_negotiation(rounds_so_far: list[RoundRecord], d: Deal) -> Negotiation | None:
+    for rec in rounds_so_far:
+        for n in rec.negotiations:
+            if n.round == d.closed_round and n.buyer == d.buyer and n.seller == d.seller \
+                    and n.closed:
+                return n
+    return None
+
+
+async def write_review(d: Deal, sst: SellerState, bst: BuyerState,
+                       rounds_so_far: list[RoundRecord], names: dict[str, str],
+                       n_rounds: int) -> None:
+    """Reviews arm only. Called the instant `d.delivered_round` is set: the buyer
+    writes its public 1-5 rating from the negotiation transcript and the round the
+    good actually arrived in."""
+    conv = find_negotiation(rounds_so_far, d)
+    if conv is None:
+        return
+    transcript = render_plain(conv, sst.name, names[bst.id])
+    j = await bst.agent.review(seller_name=sst.name, transcript=transcript,
+                               closed_round=d.closed_round, delivered_round=d.delivered_round,
+                               n_rounds=n_rounds)
+    d.review_score = max(1, min(5, int(j.score)))
+    d.review_comment = j.comment
+    d.review_reasoning = j.private_reasoning
 
 
 def owed_view(deals: list[Deal], sid: str, buyers: dict[str, BuyerState]) -> str:
@@ -170,7 +216,8 @@ async def negotiate(sst: SellerState, bst: BuyerState, *, scenario, rounds, deal
                     names) -> Negotiation:
     seller_rules = market_rules(scenario, round_no, len(sellers), side="seller")
     buyer_rules = market_rules(scenario, round_no, len(sellers), side="buyer")
-    board = public_board(seller_rows(sellers), buyer_rows(buyers))
+    review_deals = deals if scenario.enable_reviews else None
+    board = public_board(seller_rows(sellers, review_deals), buyer_rows(buyers))
     conv = Negotiation(round=round_no, attempt=attempt, buyer=bst.id, seller=sst.id,
                        approach_reasoning=why)
 
@@ -310,7 +357,10 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                 break
             rng.shuffle(free)
             alive_ids = [s.id for s in sellers]
-            options = [f"  {s.id} {s.name} — {s.agent.blurb}" for s in sellers]
+            review_deals = deals if scenario.enable_reviews else None
+            options = [f"  {s.id} {s.name} — {s.agent.blurb}{seller_rating_suffix(s, deals)}"
+                      for s in sellers] if scenario.enable_reviews else \
+                [f"  {s.id} {s.name} — {s.agent.blurb}" for s in sellers]
             fallback = {b.id: rng.choice(alive_ids) for b in free}
 
             async def approach(b: BuyerState):
@@ -318,7 +368,7 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                     return fallback[b.id], "(round 1 — nothing known yet, chosen at random)"
                 ch: ApproachChoice = await b.agent.choose(
                     rules=market_rules(scenario, round_no, len(alive_ids), side="buyer"),
-                    board=public_board(seller_rows(sellers), buyer_rows(buyers)),
+                    board=public_board(seller_rows(sellers, review_deals), buyer_rows(buyers)),
                     progress=progress_view(b, deals, round_no, scenario),
                     history=buyer_history(b, sellers_by_id), options=options)
                 pick = ch.seller.strip().upper()
@@ -428,7 +478,9 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                 else:
                     ch: HonorChoice = await s.agent.fulfil(
                         rules=market_rules(scenario, round_no, len(sellers), side="seller"),
-                        board=public_board(seller_rows(sellers), buyer_rows(buyers)),
+                        board=public_board(
+                            seller_rows(sellers, deals if scenario.enable_reviews else None),
+                            buyer_rows(buyers)),
                         goods=s.stock,
                         history=seller_history(s.id, rounds + [rec], names),
                         options=owed_view(deals, s.id, buyers), n_deals=len(mine))
@@ -455,6 +507,8 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                 d.delivered_qty += 1
                 if d.delivered_qty >= d.quantity:
                     d.delivered_round = round_no
+                    if scenario.enable_reviews:
+                        await write_review(d, s, b, rounds + [rec], names, scenario.n_rounds)
                 h = Handoff(round=round_no, seller=s.id, buyer=d.buyer, deal_id=d.id,
                             waited=round_no - d.closed_round)
                 handoffs.append(h)
@@ -543,16 +597,24 @@ def summarise(scenario, seed, sellers, buyers, deals, handoffs, rounds) -> RunRe
     scored = score_sellers(deals)
     seller_winner = max(sellers, key=lambda s: (scored.get(s.id, {}).get("net", 0), s.id))
 
-    ssum = [SellerSummary(
-        id=s.id, name=s.name, arrival_prob=s.agent.p,
-        expected_supply_per_round=round(s.agent.p / (1 - s.agent.p), 3),
-        goods_drawn=s.goods_drawn, units_sold=s.units_sold, stock_leftover=s.stock,
-        deals_closed=sum(1 for d in deals if d.seller == s.id),
-        deals_delivered=sum(1 for d in deals if d.seller == s.id and d.fully_delivered),
-        deals_undelivered=sum(1 for d in deals if d.seller == s.id and not d.fully_delivered),
-        deals_voided=scored.get(s.id, {}).get("voided", 0),
-        net_score=scored.get(s.id, {}).get("net", 0),
-        conversations=s.conversations) for s in sellers]
+    def seller_review_scores(sid: str) -> list[int]:
+        return [d.review_score for d in deals if d.seller == sid and d.review_score is not None]
+
+    ssum = []
+    for s in sellers:
+        scores = seller_review_scores(s.id)
+        ssum.append(SellerSummary(
+            id=s.id, name=s.name, arrival_prob=s.agent.p,
+            expected_supply_per_round=round(s.agent.p / (1 - s.agent.p), 3),
+            goods_drawn=s.goods_drawn, units_sold=s.units_sold, stock_leftover=s.stock,
+            deals_closed=sum(1 for d in deals if d.seller == s.id),
+            deals_delivered=sum(1 for d in deals if d.seller == s.id and d.fully_delivered),
+            deals_undelivered=sum(1 for d in deals if d.seller == s.id and not d.fully_delivered),
+            deals_voided=scored.get(s.id, {}).get("voided", 0),
+            net_score=scored.get(s.id, {}).get("net", 0),
+            conversations=s.conversations,
+            reviews_received=len(scores),
+            review_avg=round(sum(scores) / len(scores), 3) if scores else 0.0))
 
     bsum = []
     for b in sorted(buyers.values(), key=lambda x: (-x.owned, x.id)):
@@ -569,13 +631,14 @@ def summarise(scenario, seed, sellers, buyers, deals, handoffs, rounds) -> RunRe
         goods_drawn_total=sum(s.goods_drawn for s in sellers),
         stock_leftover_total=sum(s.stock for s in sellers),
         lawyer_blocked=lawyer_blocked)
+    measurements.update(build_review_measurements(deals))
 
     return RunResult(
         scenario=scenario.name, description=scenario.description, seed=seed,
         n_sellers=scenario.n_sellers, n_buyers=scenario.n_buyers,
         n_rounds=scenario.n_rounds, heads_prob=scenario.arrival_probs[0],
         apply_attributor=scenario.apply_attributor, use_lawyer=scenario.use_lawyer,
-        contract_mode=scenario.contract_mode,
+        contract_mode=scenario.contract_mode, enable_reviews=scenario.enable_reviews,
         load_bearing_assumptions=list(scenario.load_bearing_assumptions),
         rounds=rounds, deals=deals, handoffs=handoffs, sellers=ssum, buyers=bsum,
         seller_winner=seller_winner.id, seller_winner_name=seller_winner.name,

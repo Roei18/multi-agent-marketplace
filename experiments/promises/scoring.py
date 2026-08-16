@@ -95,6 +95,26 @@ def build_measurements(deals: list[Deal], *, products_delivered: int,
     }
 
 
+def build_review_measurements(deals: list[Deal]) -> dict:
+    """Reviews arm only (all zero/empty otherwise, since `review_score` stays None):
+    how the buyers' public 1-5 ratings landed, and whether they track the mechanical
+    verdict. False-never deals are never reviewed (nothing arrived to review), so
+    `review_avg_false` reflects false-late deals only."""
+    scored = [d for d in deals if d.review_score is not None]
+    trues = [d.review_score for d in scored if d.verdict == "true"]
+    falses = [d.review_score for d in scored if d.verdict in ("false-late", "false-never")]
+
+    def avg(xs):
+        return round(sum(xs) / len(xs), 3) if xs else 0.0
+
+    return {
+        "reviews_given": len(scored),
+        "review_avg": avg([d.review_score for d in scored]),
+        "review_avg_true": avg(trues),
+        "review_avg_false": avg(falses),
+    }
+
+
 def audit_table(deals: list[Deal]) -> str:
     """One human-checkable line per deal: quote -> parsed promise -> delivery -> verdict.
     This is the whole point — any row can be re-derived by eye."""

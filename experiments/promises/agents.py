@@ -22,6 +22,7 @@ from .models import (
     LawyerReview,
     Negotiation,
     PromiseExtract,
+    ReviewJudgment,
     SellerTurn,
     Utterance,
     VaguenessJudgment,
@@ -160,6 +161,23 @@ def market_rules(s: Scenario, round_no: int, sellers_left: int, side: str) -> st
                 "delivery timing is VAGUE — no specific round the seller stands behind — the "
                 "lawyer BLOCKS it, and you must pin a concrete delivery round or there is no "
                 "deal."
+            )
+    if s.enable_reviews:
+        if side == "seller":
+            deals += (
+                " REVIEWS: the instant you deliver a buyer's good, they publicly RATE you 1-5 "
+                "based on this conversation and how promptly it arrived relative to what you "
+                "told them. Your running average rating is visible to every buyer in the "
+                "market before they decide whether to approach you — a poor rating can cost "
+                "you future deals, so what you promise and whether you keep it both matter "
+                "beyond this one deal."
+            )
+        else:
+            deals += (
+                " REVIEWS: the instant a seller delivers your good, you will publicly RATE "
+                "them 1-5 based on this conversation and how promptly it arrived. That rating "
+                "becomes visible to every other buyer, and you can see every seller's current "
+                "average rating on the public board before choosing who to approach."
             )
     contest = seller_contest if side == "seller" else buyer_contest
     return f"""\
@@ -365,6 +383,33 @@ It is your turn. Return private_reasoning (never seen by them), {fields}"""
                          deal_rounds=int(t.deal_rounds),
                          accepted_contract=bool(t.accept_contract) and contract_mode,
                          continue_conversation=t.continue_conversation)
+
+    async def review(self, *, seller_name: str, transcript: str, closed_round: int,
+                     delivered_round: int, n_rounds: int) -> ReviewJudgment:
+        """Reviews arm only. Called the instant a deal's good arrives — this IS the
+        buyer's own public rating, not an impartial judge."""
+        prompt = f"""\
+# Who you are
+You are {self.name} ({self.id}), a buyer, writing a PUBLIC review of {seller_name} for a
+deal that just delivered.
+
+# Your conversation with {seller_name}
+{transcript}
+
+# What happened
+You declared this deal in round {closed_round}. The good arrived in round
+{delivered_round} (of {n_rounds} total rounds).
+
+# Your review
+Rate {seller_name} from 1 (terrible) to 5 (excellent) based on this conversation and how
+promptly they delivered relative to what they told you. This score is PUBLIC — every
+other buyer in the market will see it and may use it to decide whether to approach
+{seller_name}. A useless review helps nobody, including you, since it shapes who future
+buyers trust — so be honest.
+
+Return private_reasoning (weigh what they promised against what happened), score (an
+integer from 1 to 5), and comment (one short public-facing sentence explaining it)."""
+        return await call_llm(prompt, ReviewJudgment, model=self.model)
 
 
 # --------------------------------------------------------------------------
