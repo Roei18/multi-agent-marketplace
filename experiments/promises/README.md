@@ -38,6 +38,11 @@ round and the next** (so each buyer closes one deal every two rounds)
   publicly **rates the seller 1–5**, from their own conversation and how promptly it
   showed up. Every seller's running average is visible on the public board (and to a
   buyer choosing who to approach) for the rest of the game.
+- **Committed reviews** — a variant of public reviews: instead of gating the review on
+  delivery, the buyer names a round *when the deal closes* that it commits to
+  publicly rating the seller by. If the good still hasn't arrived when that round
+  comes, the buyer reviews anyway, based on its absence — so a seller that never
+  delivers gets judged too, not just one that delivers late.
 
 **Protocols**
 
@@ -48,6 +53,7 @@ round and the next** (so each buyer closes one deal every two rounds)
 | **attributor + lawyer** | + the lawyer. |
 | **attributor + contract** | the deal is a **formatted contract for the one good by a round the seller drafts** — the buyer accepts it or not. Vagueness is impossible by construction. |
 | **reviews** | baseline + public buyer reviews (no attributor, lawyer, or contract). |
+| **reviews_committed** | reviews, but the review fires at a buyer-committed round instead of on delivery — so non-delivery is reviewable too. |
 
 ## How a promise is judged
 
@@ -106,6 +112,29 @@ exactly the deals the arithmetic verdict above calls `false-never`. Aggregate re
 stats (`reviews_given`, `review_avg`, and the average split by verdict) land in
 `RunResult.measurements` alongside the existing vagueness/true/false rates, computed by
 `build_review_measurements` in `scoring.py`.
+
+### The `reviews_committed` variant: review at a committed round, not on delivery
+
+The `reviews` design above has a blind spot: since a review can only be written once
+the good arrives, a seller that **never delivers at all** never gets reviewed for it —
+its rating reflects only whichever subset of its deals happened to land. In a live
+seed-0 run at 8×24×12 (`p=0.4`), the seller that closed the *most* deals (25, the most
+of anyone) delivered only 6 of them (24%) — yet its rating (3.67) sat mid-pack, because
+its 19 undelivered deals contributed nothing to the average. Correlating rating against
+each seller's undelivered backlog across that run gave **+0.80** — a bigger pile of
+broken promises tracked with a *higher*, not lower, rating.
+
+`reviews_committed` closes that gap: instead of the review firing on delivery, the
+**buyer itself names a round, right when the deal closes**, that it commits to
+publicly reviewing the seller by (`BuyerTurn.review_round`, alongside the existing
+`deal_rounds`; no extra LLM call). When that round arrives — after that round's
+handoff, so an on-time delivery still reads as on-time — the buyer reviews the seller
+regardless of whether the good has shown up: if it has, the review reads the same as
+in `reviews`; if it hasn't, the buyer is told plainly that the good has not arrived as
+of its own committed round, and reviews accordingly (`BuyerAgent.review`'s
+`delivered_round < 0` branch). This guarantees every closed deal gets reviewed exactly
+once, so `review_avg_false` now genuinely spans both `false-late` **and** `false-never`
+deals, not just the former.
 
 ---
 

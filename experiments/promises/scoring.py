@@ -96,10 +96,12 @@ def build_measurements(deals: list[Deal], *, products_delivered: int,
 
 
 def build_review_measurements(deals: list[Deal]) -> dict:
-    """Reviews arm only (all zero/empty otherwise, since `review_score` stays None):
+    """Reviews arms only (all zero/empty otherwise, since `review_score` stays None):
     how the buyers' public 1-5 ratings landed, and whether they track the mechanical
-    verdict. False-never deals are never reviewed (nothing arrived to review), so
-    `review_avg_false` reflects false-late deals only."""
+    verdict. In `reviews`, false-never deals are never reviewed (nothing arrived to
+    review), so `review_avg_false` reflects false-late deals only. In
+    `reviews_committed`, false-never deals ARE reviewed (at the buyer's committed
+    round, based on the good's absence), so `review_avg_false` covers both."""
     scored = [d for d in deals if d.review_score is not None]
     trues = [d.review_score for d in scored if d.verdict == "true"]
     falses = [d.review_score for d in scored if d.verdict in ("false-late", "false-never")]

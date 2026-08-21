@@ -169,17 +169,18 @@ def find_negotiation(rounds_so_far: list[RoundRecord], d: Deal) -> Negotiation |
 
 async def write_review(d: Deal, sst: SellerState, bst: BuyerState,
                        rounds_so_far: list[RoundRecord], names: dict[str, str],
-                       n_rounds: int) -> None:
-    """Reviews arm only. Called the instant `d.delivered_round` is set: the buyer
-    writes its public 1-5 rating from the negotiation transcript and the round the
-    good actually arrived in."""
+                       n_rounds: int, as_of_round: int) -> None:
+    """`reviews`: called the instant `d.delivered_round` is set (as_of_round ==
+    d.delivered_round). `reviews_committed`: called when round == d.review_round, whether
+    or not the good has arrived by then. Either way the buyer writes its own public 1-5
+    rating from the negotiation transcript and what has actually happened so far."""
     conv = find_negotiation(rounds_so_far, d)
     if conv is None:
         return
     transcript = render_plain(conv, sst.name, names[bst.id])
     j = await bst.agent.review(seller_name=sst.name, transcript=transcript,
                                closed_round=d.closed_round, delivered_round=d.delivered_round,
-                               n_rounds=n_rounds)
+                               as_of_round=as_of_round, n_rounds=n_rounds)
     d.review_score = max(1, min(5, int(j.score)))
     d.review_comment = j.comment
     d.review_reasoning = j.private_reasoning
@@ -274,6 +275,7 @@ async def negotiate(sst: SellerState, bst: BuyerState, *, scenario, rounds, deal
             if msg.declare_deal and msg.speaker == bst.id:
                 conv.buyer_declared = True
                 conv.buyer_deal_rounds = max(1, int(msg.deal_rounds))
+                conv.buyer_review_round = int(msg.review_round)
             if conv.seller_declared and conv.buyer_declared:
                 conv.closed = True
         return conv.closed
@@ -444,10 +446,15 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                                       f"exp_supply={exp:.2f} open={open_now}")
                         else:
                             lk = 1 if scenario.single_round_lock else conv.buyer_deal_rounds
+                            review_round = None
+                            if scenario.review_on_commit:
+                                raw = (conv.buyer_review_round if conv.buyer_review_round > 0
+                                       else round_no + 1)
+                                review_round = max(round_no + 1, min(raw, scenario.n_rounds))
                             deals.append(Deal(
                                 id=len(deals), buyer=b.id, seller=sid, closed_round=round_no,
                                 lock_rounds=lk, seller_expected_supply=round(exp, 3),
-                                open_deals_at_close=open_now))
+                                open_deals_at_close=open_now, review_round=review_round))
                             b.locked_until = round_no + lk
                             b.rounds_locked += lk
                             b.note(sid, f"round {round_no}: you both declared DEAL; you sit out "
@@ -528,8 +535,9 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                 d.delivered_qty += 1
                 if d.delivered_qty >= d.quantity:
                     d.delivered_round = round_no
-                    if scenario.enable_reviews:
-                        await write_review(d, s, b, rounds + [rec], names, scenario.n_rounds)
+                    if scenario.enable_reviews and not scenario.review_on_commit:
+                        await write_review(d, s, b, rounds + [rec], names, scenario.n_rounds,
+                                           as_of_round=round_no)
                 h = Handoff(round=round_no, seller=s.id, buyer=d.buyer, deal_id=d.id,
                             waited=round_no - d.closed_round)
                 handoffs.append(h)
@@ -539,6 +547,18 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
             rec.stock_carried[s.id] = s.stock
         rec.sold_this_round = {s.id: sum(1 for h in rec.handoffs if h.seller == s.id)
                                for s in sellers}
+
+        # 4b. REVIEW CHECKPOINT (reviews_committed only) — runs after handoff, so a
+        # deal whose review_round lands this round already reflects this round's
+        # delivery. Fires whether or not the good has arrived by now: that's the
+        # whole point (a never-delivered deal still gets reviewed at its buyer's
+        # committed round, unlike the delivery-gated `reviews` arm above).
+        if scenario.review_on_commit:
+            due = [d for d in deals if d.review_round == round_no and d.review_score is None]
+            await asyncio.gather(*(
+                write_review(d, sellers_by_id[d.seller], buyers[d.buyer], rounds + [rec],
+                            names, scenario.n_rounds, as_of_round=round_no)
+                for d in due))
 
         # 5. record round leader (informational only — the race is decided on final
         # holdings, so nothing is scored here).

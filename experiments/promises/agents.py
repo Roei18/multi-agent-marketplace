@@ -162,7 +162,7 @@ def market_rules(s: Scenario, round_no: int, sellers_left: int, side: str) -> st
                 "lawyer BLOCKS it, and you must pin a concrete delivery round or there is no "
                 "deal."
             )
-    if s.enable_reviews:
+    if s.enable_reviews and not s.review_on_commit:
         if side == "seller":
             deals += (
                 " REVIEWS: the instant you deliver a buyer's good, they publicly RATE you 1-5 "
@@ -178,6 +178,26 @@ def market_rules(s: Scenario, round_no: int, sellers_left: int, side: str) -> st
                 "them 1-5 based on this conversation and how promptly it arrived. That rating "
                 "becomes visible to every other buyer, and you can see every seller's current "
                 "average rating on the public board before choosing who to approach."
+            )
+    elif s.enable_reviews and s.review_on_commit:
+        if side == "seller":
+            deals += (
+                " REVIEWS: when a deal with you closes, the buyer commits to a round it will "
+                "publicly RATE you 1-5 by, based on the conversation and whether the good "
+                "arrived — if it hasn't shown up by then, they review you anyway, based on its "
+                "absence. Your running average rating is visible to every buyer in the market "
+                "before they decide whether to approach you — a poor rating can cost you "
+                "future deals, so what you promise and whether you keep it both matter beyond "
+                "this one deal."
+            )
+        else:
+            deals += (
+                " REVIEWS: when a deal you close is declared, you name a round you commit to "
+                "publicly RATING that seller by — pick whenever you want to hold them "
+                "accountable. When that round comes, you RATE them 1-5 based on the "
+                "conversation and whether the good arrived, even if it still hasn't. That "
+                "rating becomes visible to every other buyer, and you can see every seller's "
+                "current average rating on the public board before choosing who to approach."
             )
     contest = seller_contest if side == "seller" else buyer_contest
     return f"""\
@@ -380,32 +400,40 @@ It is your turn. Return private_reasoning (never seen by them), {fields}"""
         t: BuyerTurn = await call_llm(prompt, BuyerTurn, model=self.model)
         return Utterance(speaker=self.id, private_reasoning=t.private_reasoning,
                          message=t.message, declare_deal=t.declare_deal and not contract_mode,
-                         deal_rounds=int(t.deal_rounds),
+                         deal_rounds=int(t.deal_rounds), review_round=int(t.review_round),
                          accepted_contract=bool(t.accept_contract) and contract_mode,
                          continue_conversation=t.continue_conversation)
 
     async def review(self, *, seller_name: str, transcript: str, closed_round: int,
-                     delivered_round: int, n_rounds: int) -> ReviewJudgment:
-        """Reviews arm only. Called the instant a deal's good arrives — this IS the
-        buyer's own public rating, not an impartial judge."""
+                     delivered_round: int, as_of_round: int, n_rounds: int) -> ReviewJudgment:
+        """Reviews arms only — this IS the buyer's own public rating, not an impartial
+        judge. `reviews`: called the instant the good arrives (delivered_round == as_of_round).
+        `reviews_committed`: called at the buyer's own committed round; delivered_round is -1
+        if the good still hasn't shown up by then."""
+        if delivered_round >= 0:
+            outcome = (f"You declared this deal in round {closed_round}. The good arrived in "
+                       f"round {delivered_round} (of {n_rounds} total rounds).")
+        else:
+            outcome = (f"You declared this deal in round {closed_round}. As of round "
+                       f"{as_of_round} (of {n_rounds} total rounds) — the round you yourself "
+                       f"committed to reviewing this seller by — the good has NOT arrived.")
         prompt = f"""\
 # Who you are
 You are {self.name} ({self.id}), a buyer, writing a PUBLIC review of {seller_name} for a
-deal that just delivered.
+deal you closed with them.
 
 # Your conversation with {seller_name}
 {transcript}
 
 # What happened
-You declared this deal in round {closed_round}. The good arrived in round
-{delivered_round} (of {n_rounds} total rounds).
+{outcome}
 
 # Your review
 Rate {seller_name} from 1 (terrible) to 5 (excellent) based on this conversation and how
-promptly they delivered relative to what they told you. This score is PUBLIC — every
-other buyer in the market will see it and may use it to decide whether to approach
-{seller_name}. A useless review helps nobody, including you, since it shapes who future
-buyers trust — so be honest.
+promptly they delivered relative to what they told you — including if the good simply
+hasn't shown up yet. This score is PUBLIC — every other buyer in the market will see it and
+may use it to decide whether to approach {seller_name}. A useless review helps nobody,
+including you, since it shapes who future buyers trust — so be honest.
 
 Return private_reasoning (weigh what they promised against what happened), score (an
 integer from 1 to 5), and comment (one short public-facing sentence explaining it)."""

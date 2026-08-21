@@ -67,6 +67,13 @@ class BuyerTurn(BaseModel):
         "understand this deal commits you to sit out of the market (you may still receive "
         "goods during that time, you just cannot make new deals). Minimum 1.",
     )
+    review_round: int = Field(
+        default=-1,
+        description="Only meaningful when declare_deal is true, reviews_committed arm only: "
+        "the round you commit to checking in and publicly reviewing this seller, whether or "
+        "not the good has arrived by then — pick based on when you expect it, or whenever you "
+        "want to hold them accountable by.",
+    )
     # Arm 4 (contract) only — ignored otherwise.
     accept_contract: bool = Field(
         default=False,
@@ -200,6 +207,7 @@ class Utterance(BaseModel):
     message: str
     declare_deal: bool = False
     deal_rounds: int = -1
+    review_round: int = -1
     # arm 4 only
     proposed_contract: str = ""
     c_quantity: int = -1
@@ -219,6 +227,7 @@ class Negotiation(BaseModel):
     buyer_declared: bool = False
     closed: bool = False
     buyer_deal_rounds: int = -1
+    buyer_review_round: int = -1
     # arm 3 (lawyer): recorded so the lawyer's own error rate can be scored later
     lawyer_vague: bool | None = None
     lawyer_reason: str = ""
@@ -253,10 +262,14 @@ class Deal(BaseModel):
     verdict: str = ""                 # "" | true | false-late | false-never | vague
     # set by the attributor (arm 2+): this deal was voided as a false promise
     fined: bool = False
-    # --- reviews arm: written by the buyer the instant the good arrives ---
-    review_score: int | None = None   # 1-5, or None if never delivered / reviews disabled
+    # --- reviews arms: `reviews` writes the instant the good arrives (never-delivered
+    # deals stay unreviewed); `reviews_committed` writes at `review_round`, a round the
+    # buyer names when the deal closes, whether or not the good has arrived by then. ---
+    review_score: int | None = None   # 1-5, or None if not (yet) reviewed / reviews disabled
     review_comment: str = ""
     review_reasoning: str = ""
+    review_round: int | None = None   # reviews_committed arm only: the round the buyer
+                                       # committed to reviewing this seller by, set at close
 
     @property
     def outstanding(self) -> bool:
