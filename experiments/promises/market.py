@@ -450,7 +450,13 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                             if scenario.review_on_commit:
                                 raw = (conv.buyer_review_round if conv.buyer_review_round > 0
                                        else round_no + 1)
-                                review_round = max(round_no + 1, min(raw, scenario.n_rounds))
+                                # Floor at round_no+1 (a review_round in the past would never
+                                # be checked again once the loop moves past it) then cap at
+                                # n_rounds — which, for a deal closed on the last round,
+                                # collapses the floor down to round_no itself: there is no
+                                # future round to schedule, so it reviews immediately instead
+                                # of being silently dropped past the end of the game.
+                                review_round = min(scenario.n_rounds, max(round_no + 1, raw))
                             deals.append(Deal(
                                 id=len(deals), buyer=b.id, seller=sid, closed_round=round_no,
                                 lock_rounds=lk, seller_expected_supply=round(exp, 3),
