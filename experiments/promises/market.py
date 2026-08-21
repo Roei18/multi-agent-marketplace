@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import random
+import re
 import time
 from dataclasses import dataclass, field
 
@@ -130,6 +131,26 @@ def seller_rows(sellers: list[SellerState], deals: list[Deal] | None = None) -> 
         + (seller_rating_suffix(s, deals) if deals is not None else "")
         for s in sellers
     ]
+
+
+def resolve_seller(raw: str, sellers: list[SellerState]) -> str | None:
+    """Match a buyer's free-text seller answer back to an id. The prompt asks for
+    the bare id (e.g. 'S7'), but models often answer with the id-plus-name or the
+    name alone (e.g. 'S7 Redmond Wholesale', 'Redmond Wholesale') — match those too
+    instead of discarding the pick as invalid."""
+    by_id = {s.id: s for s in sellers}
+    upper = raw.strip().upper()
+    if upper in by_id:
+        return upper
+    m = re.match(r"([A-Z]+\d+)\b", upper)
+    if m and m.group(1) in by_id:
+        return m.group(1)
+    lower = raw.strip().lower()
+    name_matches = {s.id for s in sellers
+                    if s.name.lower() in lower or lower in s.name.lower()}
+    if len(name_matches) == 1:
+        return next(iter(name_matches))
+    return None
 
 
 def buyer_rows(buyers: dict[str, BuyerState]) -> list[str]:
@@ -371,8 +392,8 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                     board=public_board(seller_rows(sellers, review_deals), buyer_rows(buyers)),
                     progress=progress_view(b, deals, round_no, scenario),
                     history=buyer_history(b, sellers_by_id), options=options)
-                pick = ch.seller.strip().upper()
-                if pick not in alive_ids:
+                pick = resolve_seller(ch.seller, sellers)
+                if pick is None:
                     return fallback[b.id], (f"{ch.private_reasoning} [named {ch.seller!r}, "
                                             f"not in market; reassigned]")
                 return pick, ch.private_reasoning
