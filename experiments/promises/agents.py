@@ -348,12 +348,8 @@ who leads along the way. You are racing the other buyers for a limited,
 unpredictable supply.
 
 # The bet you take when you close
-Declaring DEAL locks you out of making further deals for the number of rounds you
-name — goods from the deal can still reach you, but you cannot go shopping again
-until the lock passes. A deal with a seller who never delivers, or delivers far too
-late, is those rounds wasted. But goods reach you only through deals, so committing
-to nobody wins you nothing. Nothing a seller says can be checked, and nothing makes
-them deliver.
+Goods reach you only through a DEAL — you must close one to have any chance at a
+good. Declaring DEAL locks you out of making a new deal for one round.
 
 # Your progress
 {progress}

@@ -594,13 +594,16 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
         rec.sold_this_round = {s.id: sum(1 for h in rec.handoffs if h.seller == s.id)
                                for s in sellers}
 
-        # 4b. REVIEW CHECKPOINT (reviews_committed only) — runs after handoff, so a
-        # deal whose review_round lands this round already reflects this round's
-        # delivery. Fires whether or not the good has arrived by now: that's the
-        # whole point (a never-delivered deal still gets reviewed at its buyer's
-        # committed round, unlike the delivery-gated `reviews` arm above).
+        # 4b. REVIEW CHECKPOINT (reviews_committed only) — fires at
+        # min(review_round, delivered_round): the instant the good actually arrives
+        # (same reward speed as the delivery-gated `reviews` arm, so an early seller
+        # isn't penalized for a buyer picking a distant checkpoint), OR at the
+        # buyer's committed round if it still hasn't arrived by then (so a
+        # never-delivered deal still gets reviewed, unlike `reviews` above). Runs
+        # after handoff, so a delivery landing this exact round is already visible.
         if scenario.review_on_commit:
-            due = [d for d in deals if d.review_round == round_no and d.review_score is None]
+            due = [d for d in deals if d.review_score is None
+                  and (d.delivered_round == round_no or d.review_round == round_no)]
             await asyncio.gather(*(
                 write_review(d, sellers_by_id[d.seller], buyers[d.buyer], rounds + [rec],
                             names, scenario.n_rounds, as_of_round=round_no)
