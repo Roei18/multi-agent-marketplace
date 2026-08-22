@@ -36,14 +36,7 @@ DECLARE_SELLER = """\
 Set declare_deal to true once you and this buyer have reached an agreement you are
 ready to stand behind — declaring DEAL means you are COMMITTING to deliver what you
 told them. Set it to false while you are still working out what to offer; a deal
-forms only when both of you declare, so someone has to go first.
-
-What a buyer cares about most is WHEN the goods arrive. You have not yet drawn your
-goods for this round — you learn how many you have only after the talking, and you
-alone then choose who receives them. So be deliberate about any delivery time you
-name: promise a time you can actually hit, or be honest that you cannot pin one
-down. A seller who closes no deals has nothing to hand over — so you must close
-deals — but choose carefully what you commit to when you do."""
+forms only when both of you declare, so someone has to go first."""
 
 DECLARE_BUYER = """\
 Set declare_deal to true once you have heard enough to want this seller's goods.
@@ -212,14 +205,19 @@ private one-to-one conversation, over {s.n_rounds} rounds. It is round {round_no
 {contest}"""
 
 
-def public_board(seller_rows, buyer_rows) -> str:
-    return f"""\
-# Public board (everyone sees this)
+def public_board(seller_rows, buyer_rows=None) -> str:
+    """`buyer_rows=None` for the seller's own board: how much any buyer owns is not
+    a seller's business, and showing it would only bias seller behavior."""
+    out = f"""\
+# Public board
 Sellers — units handed over so far (total):
-{chr(10).join(seller_rows)}
+{chr(10).join(seller_rows)}"""
+    if buyer_rows is not None:
+        out += f"""
 
 Buyers — goods owned (points):
 {chr(10).join(buyer_rows)}"""
+    return out
 
 
 # --------------------------------------------------------------------------
@@ -236,9 +234,12 @@ class SellerAgent:
         mean = self.p / (1 - self.p)
         return (
             f"Your goods arrive at random and are added to your stock AFTER each round's "
-            f"negotiation, never before — so while you are talking you are NOT shown how much "
-            f"stock you hold; you have only your arrival rate to go on. The other party has no "
-            f"information about the process of arrival what so ever. Each round a coin with "
+            f"negotiation, never before — so while you are talking THIS round, this round's "
+            f"arrivals have not happened yet and are not known to you. You know what you drew "
+            f"and sold in past rounds (see your status below) and can estimate your current "
+            f"stock from that, but there is no running 'stock' figure handed to you directly. "
+            f"The other party has no information about the process of arrival what so ever. "
+            f"Each round a coin with "
             f"a {self.p:.0%} chance of heads is flipped until the first tail; the number of "
             f"heads is that round's new arrivals — averaging about {mean:.1f} a round, but "
             f"nothing at all roughly {(1 - self.p):.0%} of the time, and sometimes several. "
@@ -401,18 +402,21 @@ It is your turn. Return private_reasoning (never seen by them), {fields}"""
                          continue_conversation=t.continue_conversation)
 
     async def review(self, *, seller_name: str, transcript: str, closed_round: int,
-                     delivered_round: int, as_of_round: int, n_rounds: int) -> ReviewJudgment:
+                     delivered_round: int, as_of_round: int, n_rounds: int,
+                     review_round: int | None = None) -> ReviewJudgment:
         """Reviews arms only — this IS the buyer's own public rating, not an impartial
-        judge. `reviews`: called the instant the good arrives (delivered_round == as_of_round).
-        `reviews_committed`: called at the buyer's own committed round; delivered_round is -1
-        if the good still hasn't shown up by then."""
-        if delivered_round >= 0:
-            outcome = (f"You declared this deal in round {closed_round}. The good arrived in "
-                       f"round {delivered_round} (of {n_rounds} total rounds).")
-        else:
-            outcome = (f"You declared this deal in round {closed_round}. As of round "
-                       f"{as_of_round} (of {n_rounds} total rounds) — the round you yourself "
-                       f"committed to reviewing this seller by — the good has NOT arrived.")
+        judge. `reviews`: called the instant the good arrives (delivered_round == as_of_round,
+        review_round=None). `reviews_committed`: review_round is the round the buyer itself
+        chose when the deal closed; delivered_round is -1 if the good hasn't shown up yet.
+        States facts only — closed round, chosen round if any, current round, delivery
+        status — no framing of what any of it means; the buyer reads the conversation and
+        decides the score itself."""
+        outcome = f"You declared this deal in round {closed_round}."
+        if review_round is not None:
+            outcome += f" You chose round {review_round} as when you would review this seller."
+        outcome += f" It is now round {as_of_round} (of {n_rounds} total rounds)."
+        outcome += (f" The good arrived in round {delivered_round}." if delivered_round >= 0
+                   else " The good has not arrived.")
         prompt = f"""\
 # Who you are
 You are {self.name} ({self.id}), a buyer, writing a PUBLIC review of {seller_name} for a

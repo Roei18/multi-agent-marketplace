@@ -184,7 +184,8 @@ async def write_review(d: Deal, sst: SellerState, bst: BuyerState,
     transcript = render_plain(conv, sst.name, names[bst.id])
     j = await bst.agent.review(seller_name=sst.name, transcript=transcript,
                                closed_round=d.closed_round, delivered_round=d.delivered_round,
-                               as_of_round=as_of_round, n_rounds=n_rounds)
+                               as_of_round=as_of_round, n_rounds=n_rounds,
+                               review_round=d.review_round)
     d.review_score = max(1, min(5, int(j.score)))
     d.review_comment = j.comment
     d.review_reasoning = j.private_reasoning
@@ -263,7 +264,11 @@ async def negotiate(sst: SellerState, bst: BuyerState, *, scenario, rounds, deal
     seller_rules = market_rules(scenario, round_no, len(sellers), side="seller")
     buyer_rules = market_rules(scenario, round_no, len(sellers), side="buyer")
     review_deals = deals if scenario.enable_reviews else None
-    board = public_board(seller_rows(sellers, review_deals), buyer_rows(buyers))
+    # Sellers see only the sellers' board (their own contest, units handed over,
+    # ratings) — how much any buyer owns is not a seller's business and would only
+    # bias its behavior. Buyers see both, since owning goods IS their contest.
+    seller_board = public_board(seller_rows(sellers, review_deals))
+    buyer_board = public_board(seller_rows(sellers, review_deals), buyer_rows(buyers))
     conv = Negotiation(round=round_no, attempt=attempt, buyer=bst.id, seller=sst.id,
                        approach_reasoning=why)
 
@@ -271,7 +276,8 @@ async def negotiate(sst: SellerState, bst: BuyerState, *, scenario, rounds, deal
 
     async def seller_msg(opening):
         return await sst.agent.turn(
-            rules=seller_rules, board=board, status=seller_status_view(sst, deals, buyers),
+            rules=seller_rules, board=seller_board,
+            status=seller_status_view(sst, deals, buyers),
             history=seller_history(sst.id, rounds, names),
             buyer_name=bst.agent.name, buyer_id=bst.id, conv=conv, opening=opening,
             max_messages=scenario.max_messages, contract_mode=cm,
@@ -279,7 +285,7 @@ async def negotiate(sst: SellerState, bst: BuyerState, *, scenario, rounds, deal
 
     async def buyer_msg():
         return await bst.agent.turn(
-            rules=buyer_rules, board=board,
+            rules=buyer_rules, board=buyer_board,
             progress=progress_view(bst, deals, round_no, scenario),
             history=buyer_history(bst, sellers_by_id),
             seller_name=sst.agent.name, conv=conv, max_messages=scenario.max_messages,
@@ -417,9 +423,12 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
             rng.shuffle(free)
             alive_ids = [s.id for s in sellers]
             review_deals = deals if scenario.enable_reviews else None
-            options = [f"  {s.id} {s.name} — {s.agent.blurb}{seller_rating_suffix(s, deals)}"
+            # Only id (+ rating, if reviews are on) — no name or blurb: a seller's
+            # flavor text carries no real information about it and would only bias
+            # a buyer's choice before any actual interaction or track record exists.
+            options = [f"  {s.id}{seller_rating_suffix(s, deals)}"
                       for s in sellers] if scenario.enable_reviews else \
-                [f"  {s.id} {s.name} — {s.agent.blurb}" for s in sellers]
+                [f"  {s.id}" for s in sellers]
             fallback = {b.id: rng.choice(alive_ids) for b in free}
 
             async def approach(b: BuyerState):
@@ -551,8 +560,7 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                     ch: HonorChoice = await s.agent.fulfil(
                         rules=market_rules(scenario, round_no, len(sellers), side="seller"),
                         board=public_board(
-                            seller_rows(sellers, deals if scenario.enable_reviews else None),
-                            buyer_rows(buyers)),
+                            seller_rows(sellers, deals if scenario.enable_reviews else None)),
                         goods=s.stock,
                         history=seller_history(s.id, rounds + [rec], names),
                         options=seller_status_view(s, deals, buyers), n_deals=len(mine))
