@@ -342,7 +342,9 @@ async def _lawyer_gate(conv, sst, bst, scenario, round_no, register, seller_msg,
 
 async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                      buyer_model: str | None = None,
-                     seller_model: str | None = None) -> RunResult:
+                     seller_model: str | None = None,
+                     strong_seller: str | None = None,
+                     strong_seller_model: str | None = None) -> RunResult:
     # Two independent random processes, each seeded the same, so supply is NOT
     # perturbed by how the negotiation consumes randomness — baseline and every
     # other arm face the SAME per-round supply at a given seed.
@@ -354,6 +356,16 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
     for s in sellers:
         s.agent.model = seller_model     # None = keep the default model
     sellers_by_id = {s.id: s for s in sellers}
+    if strong_seller_model:
+        # Single-seller model probe: everyone else stays on the default (or on
+        # seller_model, if that was also given); this one seller alone runs on a
+        # different (typically stronger) model, so its behavior can be compared
+        # head-to-head against otherwise-identical competitors.
+        target = strong_seller or sellers[0].id
+        if target not in sellers_by_id:
+            raise SystemExit(f"--strong-seller {target!r} is not among this run's "
+                             f"{scenario.n_sellers} sellers ({', '.join(sellers_by_id)})")
+        sellers_by_id[target].agent.model = strong_seller_model
     buyers = {bid: BuyerState(BuyerAgent(bid, nm, scenario))
               for bid, nm in BUYERS[:scenario.n_buyers]}
     for b in buyers.values():

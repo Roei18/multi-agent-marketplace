@@ -103,6 +103,14 @@ async def main() -> None:
                     help="override the model for BUYER agents only (probe, e.g. a stronger model)")
     ap.add_argument("--seller-model", default=None,
                     help="override the model for SELLER agents only (probe)")
+    ap.add_argument("--strong-seller", default=None,
+                    help="id of the ONE seller to single out with --strong-seller-model "
+                    "(default: the first seller in the run) — everyone else stays on the "
+                    "default model, or --seller-model if that is also given")
+    ap.add_argument("--strong-seller-model", default=None,
+                    help="model for the single seller named by --strong-seller (e.g. "
+                    "openai/gpt-4o), to compare one stronger agent against otherwise-"
+                    "identical competitors")
     ap.add_argument("--tag", default="",
                     help="label inserted into the saved filename (e.g. a model name)")
     ap.add_argument("--quiet", action="store_true")
@@ -142,8 +150,13 @@ async def main() -> None:
     if args.buyer_model or args.seller_model:
         print(f"MODEL OVERRIDE — buyer: {args.buyer_model or '(default)'}, "
               f"seller: {args.seller_model or '(default)'}")
+    if args.strong_seller_model:
+        print(f"STRONG SELLER — {args.strong_seller or '(first seller)'} runs "
+              f"{args.strong_seller_model}, everyone else on the default")
     result = await run_market(s, seed=args.seed, verbose=not args.quiet,
-                              buyer_model=args.buyer_model, seller_model=args.seller_model)
+                              buyer_model=args.buyer_model, seller_model=args.seller_model,
+                              strong_seller=args.strong_seller,
+                              strong_seller_model=args.strong_seller_model)
     path = save(result, tag=args.tag)
     report(result)
     if args.audit:
