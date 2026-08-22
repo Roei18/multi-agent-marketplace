@@ -249,7 +249,7 @@ class SellerAgent:
             f"walk away."
         )
 
-    def _base(self, rules, board, owed, history) -> str:
+    def _base(self, rules, board, status, history) -> str:
         return f"""\
 {rules}
 
@@ -263,13 +263,13 @@ Every deal you close is a step toward surviving; a seller who sits idle is finis
 # Your supply
 {self._supply()}
 
-# Deals you have open (declared, not yet fulfilled)
-{owed}
+# Your status (deals closed, delivered, and what your open backlog implies)
+{status}
 
 # Your conversations so far
 {history}"""
 
-    async def turn(self, *, rules, board, owed, history, buyer_name, buyer_id,
+    async def turn(self, *, rules, board, status, history, buyer_name, buyer_id,
                    conv, opening, max_messages, contract_mode=False,
                    single_good=False) -> Utterance:
         who = (f"{buyer_name} ({buyer_id}) has come to you looking to buy."
@@ -290,7 +290,7 @@ Every deal you close is a step toward surviving; a seller who sits idle is finis
             guidance = DECLARE_SELLER
             fields = "message, declare_deal, and continue_conversation."
         prompt = f"""\
-{self._base(rules, board, owed, history)}
+{self._base(rules, board, status, history)}
 
 # Private conversation with {buyer_name}
 {who} Nobody else will ever hear this.

@@ -71,6 +71,8 @@ class SellerState:
     goods_drawn: int = 0
     units_sold: int = 0
     conversations: int = 0
+    deals_closed: int = 0      # bookkept live, not derived: every deal ever declared
+    deals_delivered: int = 0   # bookkept live: of those, how many fully handed over
 
     @property
     def id(self) -> str:
@@ -87,6 +89,8 @@ class BuyerState:
     owned: int = 0
     locked_until: int = 0
     rounds_locked: int = 0
+    deals_closed: int = 0      # bookkept live: every deal it has ever declared
+    deals_delivered: int = 0   # bookkept live: of those, how many actually arrived
     ledger: dict[str, list[str]] = field(default_factory=dict)
 
     @property
@@ -186,15 +190,30 @@ async def write_review(d: Deal, sst: SellerState, bst: BuyerState,
     d.review_reasoning = j.private_reasoning
 
 
-def owed_view(deals: list[Deal], sid: str, buyers: dict[str, BuyerState]) -> str:
-    mine = [d for d in deals if d.seller == sid and d.outstanding]
-    if not mine:
-        return "None — you owe nobody."
-    lines = []
-    for d in sorted(mine, key=lambda d: d.closed_round):
-        nm = buyers[d.buyer].agent.name
-        lines.append(f"  {d.buyer} {nm} — declared in round {d.closed_round}")
-    return "\n".join(lines)
+def seller_status_view(sst: SellerState, deals: list[Deal],
+                       buyers: dict[str, BuyerState]) -> str:
+    """The seller's own bookkept state, made explicit every turn instead of left for it
+    to reconstruct: how many deals it has closed vs. delivered, and what that backlog
+    means against its own known average supply rate — the arithmetic behind
+    over-commitment, spelled out rather than implied across two separate sections."""
+    open_deals = [d for d in deals if d.seller == sst.id and d.outstanding]
+    n_open = sst.deals_closed - sst.deals_delivered
+    if open_deals:
+        lines = "\n".join(
+            f"  {d.buyer} {buyers[d.buyer].agent.name} — declared in round {d.closed_round}"
+            for d in sorted(open_deals, key=lambda d: d.closed_round))
+    else:
+        lines = "  None — you owe nobody."
+    mean = sst.agent.p / (1 - sst.agent.p)
+    eta = f"about {n_open / mean:.1f} more rounds" if mean > 0 and n_open > 0 else "N/A"
+    return (
+        f"Deals closed so far: {sst.deals_closed}. Delivered: {sst.deals_delivered}. "
+        f"Still open (undelivered): {n_open}.\n"
+        f"Goods drawn so far (realized): {sst.goods_drawn}, against an average rate of "
+        f"{mean:.2f}/round. At that average rate, clearing your CURRENT open backlog "
+        f"alone — before any new deal you take on now — would take {eta}.\n\n"
+        f"{lines}"
+    )
 
 
 def seller_history(sid: str, rounds: list[RoundRecord], names: dict[str, str]) -> str:
@@ -221,11 +240,16 @@ def buyer_history(b: BuyerState, sellers: dict[str, SellerState]) -> str:
 
 
 def progress_view(b: BuyerState, deals: list[Deal], round_no: int, s: Scenario) -> str:
+    """The buyer's own bookkept state, symmetric with seller_status_view: deals closed
+    vs. delivered, and who it's still owed by."""
     live = [d for d in deals if d.buyer == b.id and d.outstanding]
+    n_open = b.deals_closed - b.deals_delivered
     waiting = (", ".join(f"{d.seller} (since round {d.closed_round})" for d in live)
                if live else "nobody")
-    return (f"You own {b.owned} good(s). Round {round_no} of {s.n_rounds} (only your final "
-            f"holdings decide the race). You are waiting on goods from: {waiting}.")
+    return (f"You own {b.owned} good(s). Deals closed so far: {b.deals_closed}. "
+            f"Delivered: {b.deals_delivered}. Still open (waiting on): {n_open}. "
+            f"Round {round_no} of {s.n_rounds} (only your final holdings decide the "
+            f"race). You are waiting on goods from: {waiting}.")
 
 
 # --------------------------------------------------------------------------
@@ -247,7 +271,7 @@ async def negotiate(sst: SellerState, bst: BuyerState, *, scenario, rounds, deal
 
     async def seller_msg(opening):
         return await sst.agent.turn(
-            rules=seller_rules, board=board, owed=owed_view(deals, sst.id, buyers),
+            rules=seller_rules, board=board, status=seller_status_view(sst, deals, buyers),
             history=seller_history(sst.id, rounds, names),
             buyer_name=bst.agent.name, buyer_id=bst.id, conv=conv, opening=opening,
             max_messages=scenario.max_messages, contract_mode=cm,
@@ -432,6 +456,8 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                         round_no=round_no, attempt=attempt, why=why, names=names)
                     out.append(conv)
                     if conv.closed:
+                        sst.deals_closed += 1
+                        b.deals_closed += 1
                         exp = sst.agent.p / (1 - sst.agent.p)
                         open_now = sum(1 for d in deals
                                        if d.seller == sid and d.outstanding) + 1
@@ -529,7 +555,7 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                             buyer_rows(buyers)),
                         goods=s.stock,
                         history=seller_history(s.id, rounds + [rec], names),
-                        options=owed_view(deals, s.id, buyers), n_deals=len(mine))
+                        options=seller_status_view(s, deals, buyers), n_deals=len(mine))
                     # The seller names BUYERS to honor; each mention fills that buyer's
                     # oldest still-open deal (naming a buyer twice fills two of its deals).
                     by_buyer: dict[str, list[Deal]] = {}
@@ -553,6 +579,8 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                 d.delivered_qty += 1
                 if d.delivered_qty >= d.quantity:
                     d.delivered_round = round_no
+                    s.deals_delivered += 1
+                    b.deals_delivered += 1
                     if scenario.enable_reviews and not scenario.review_on_commit:
                         await write_review(d, s, b, rounds + [rec], names, scenario.n_rounds,
                                            as_of_round=round_no)
