@@ -128,6 +128,7 @@ def market_rules(s: Scenario, round_no: int, sellers_left: int, side: str) -> st
         "that matters is what you are holding at the finish. You are competing with every "
         "other buyer for a limited supply. The competition is critical for your company."
     )
+    no_price = "There are no prices in this market. "
     if s.contract_mode:
         if s.single_good:
             terms = ("A DEAL is a written CONTRACT for exactly ONE good. The SELLER drafts the "
@@ -137,11 +138,13 @@ def market_rules(s: Scenario, round_no: int, sellers_left: int, side: str) -> st
                      "QUANTITY of units and the DELIVERY ROUND by which they will arrive (e.g. "
                      "'3 units by round 6'). ")
         lock = "for one round" if s.single_round_lock else "until that delivery round"
-        deals = (terms + "The contract is struck when the BUYER ACCEPTS it exactly as written; "
+        deals = (no_price + terms +
+                 "The contract is struck when the BUYER ACCEPTS it exactly as written; "
                  f"its terms are then recorded and the buyer is locked out of new deals {lock}.")
     else:
         blk = "for one round" if s.single_round_lock else "for a number of rounds it names"
         deals = (
+            no_price +
             "A DEAL exists when BOTH sides declare it, and is for ONE good. Declaring is not "
             "idle talk — it means you are standing behind what you said. For a SELLER, "
             "declaring is a commitment to deliver what you promised. For a BUYER, it locks it "
