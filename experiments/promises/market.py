@@ -299,6 +299,7 @@ async def negotiate(sst: SellerState, bst: BuyerState, *, scenario, rounds, deal
                 conv.draft_by_round = max(round_no, min(int(msg.c_by_round), scenario.n_rounds))
             if msg.accepted_contract and conv.draft_quantity > 0:
                 conv.closed = True
+                conv.buyer_review_round = int(msg.review_round)
         else:
             if msg.declare_deal and msg.speaker == sst.id:
                 conv.seller_declared = True
@@ -470,6 +471,17 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                         exp = sst.agent.p / (1 - sst.agent.p)
                         open_now = sum(1 for d in deals
                                        if d.seller == sid and d.outstanding) + 1
+                        review_round = None
+                        if scenario.review_on_commit:
+                            raw = (conv.buyer_review_round if conv.buyer_review_round > 0
+                                   else round_no + 1)
+                            # Floor at round_no+1 (a review_round in the past would never
+                            # be checked again once the loop moves past it) then cap at
+                            # n_rounds — which, for a deal closed on the last round,
+                            # collapses the floor down to round_no itself: there is no
+                            # future round to schedule, so it reviews immediately instead
+                            # of being silently dropped past the end of the game.
+                            review_round = min(scenario.n_rounds, max(round_no + 1, raw))
                         if scenario.contract_mode:
                             # Deals are for ONE good (single_good caps the drafted quantity to
                             # 1, matching the free-text arms and removing the quantity confound).
@@ -482,7 +494,7 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                                 id=len(deals), buyer=b.id, seller=sid, closed_round=round_no,
                                 lock_rounds=lock_until - round_no, quantity=qty, by_round=T,
                                 committed_qty=qty, seller_expected_supply=round(exp, 3),
-                                open_deals_at_close=open_now))
+                                open_deals_at_close=open_now, review_round=review_round))
                             b.locked_until = lock_until
                             b.rounds_locked += max(0, lock_until - round_no)
                             lk = "1 round" if scenario.single_round_lock else f"round {T}"
@@ -493,17 +505,6 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                                       f"exp_supply={exp:.2f} open={open_now}")
                         else:
                             lk = 1 if scenario.single_round_lock else conv.buyer_deal_rounds
-                            review_round = None
-                            if scenario.review_on_commit:
-                                raw = (conv.buyer_review_round if conv.buyer_review_round > 0
-                                       else round_no + 1)
-                                # Floor at round_no+1 (a review_round in the past would never
-                                # be checked again once the loop moves past it) then cap at
-                                # n_rounds — which, for a deal closed on the last round,
-                                # collapses the floor down to round_no itself: there is no
-                                # future round to schedule, so it reviews immediately instead
-                                # of being silently dropped past the end of the game.
-                                review_round = min(scenario.n_rounds, max(round_no + 1, raw))
                             deals.append(Deal(
                                 id=len(deals), buyer=b.id, seller=sid, closed_round=round_no,
                                 lock_rounds=lk, seller_expected_supply=round(exp, 3),

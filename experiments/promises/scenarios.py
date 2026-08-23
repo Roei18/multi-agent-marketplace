@@ -136,6 +136,18 @@ SCENARIOS: dict[str, Scenario] = {
         enable_reviews=True,
         review_on_commit=True,
     ),
+    "contract_reviews": Scenario(
+        name="contract_reviews",
+        description="contract_attributor plus committed reviews: the deal is a contract for "
+        "ONE good by a round the seller drafts and the buyer accepts (vague impossible by "
+        "construction), the regulator voids contracts not kept, AND when the contract is "
+        "accepted the buyer names a round it commits to publicly reviewing this seller by, "
+        "delivered or not.",
+        apply_attributor=True,
+        contract_mode=True,
+        enable_reviews=True,
+        review_on_commit=True,
+    ),
 }
 
 
