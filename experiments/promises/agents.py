@@ -25,6 +25,7 @@ from .models import (
     ReviewJudgment,
     SellerTurn,
     Utterance,
+    VagueIntervalExtract,
     VaguenessJudgment,
 )
 from .scenarios import Scenario
@@ -522,6 +523,45 @@ Return:
   reason — one plain sentence for the record
   quote — the words your ruling turns on, copied WORD FOR WORD from the conversation"""
     return await call_llm(prompt, VaguenessJudgment)
+
+
+async def extract_vague_interval(
+    *, transcript: str, closed_round: int, n_rounds: int
+) -> VagueIntervalExtract:
+    """Follow-up to judge_vagueness, called only on deals already ruled VAGUE. A
+    vague hedge rarely conveys zero timing information — this extracts whatever
+    rough window it does imply, as absolute round bounds, so those deals can still
+    be scored instead of dropped from the measurement."""
+    prompt = f"""\
+This deal's delivery commitment was already ruled VAGUE — the seller never firmly
+committed to one specific delivery round. The deal closed in round {closed_round}
+of a {n_rounds}-round game. You took no part in it.
+
+Your single question: even without pinning one exact round, do the seller's words
+still imply a rough WINDOW of delivery rounds — a lower bound, an upper bound, or
+both? Convert relative language to absolute round numbers ("next round" =
+{closed_round + 1}, "within 1-2 rounds" = {closed_round + 1} to {closed_round + 2},
+"soon" with no further qualifier implies no usable bound).
+
+# The conversation
+{transcript}
+
+# The standard
+- HAS an interval: any words that bound the timing even loosely — "within 1-2
+  rounds", "sometime in the next few rounds", "not this round, but soon after",
+  "round 3 or 4". Extract whichever bounds are actually implied; a one-sided hedge
+  ("not before round 5") gives only a lower bound, leave the other null.
+- NO interval: a pure non-answer that bounds nothing — "as soon as I can", "when my
+  supply comes in", "I'll do my best", "soon" alone.
+
+Return:
+  private_reasoning — weigh what range of rounds, if any, the seller's words imply
+  has_interval — true if any bound (lower and/or upper) is implied, false for a pure non-answer
+  lo_round — earliest implied round as an absolute number, else null
+  hi_round — latest implied round as an absolute number, else null
+  reason — one plain sentence for the record
+  quote — the words this turns on, copied WORD FOR WORD; empty if has_interval is false"""
+    return await call_llm(prompt, VagueIntervalExtract)
 
 
 # --------------------------------------------------------------------------

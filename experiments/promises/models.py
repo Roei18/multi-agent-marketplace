@@ -196,6 +196,43 @@ class VaguenessJudgment(BaseModel):
     )
 
 
+class VagueIntervalExtract(BaseModel):
+    """Follow-up extraction, called ONLY on deals already ruled vague by
+    VaguenessJudgment. A vague deal rarely conveys zero timing information — most
+    hedges still imply a rough window ('within 1-2 rounds', 'in the next few
+    rounds'). This extracts that implied window, if any, as absolute round bounds —
+    not a verdict, purely a reading of what the words imply."""
+
+    private_reasoning: str = Field(
+        description="Weigh what range of delivery rounds, if any, the seller's words imply. "
+        "Do not reason about whether goods actually arrived."
+    )
+    has_interval: bool = Field(
+        description="True if the seller's words imply ANY bound — lower and/or upper — on "
+        "delivery timing, even loosely ('within 1-2 rounds', 'sometime in the next few "
+        "rounds', 'not this round'). False only for a pure non-answer with no timing "
+        "information at all ('as soon as I can', 'when my supply comes in', 'I'll do my "
+        "best')."
+    )
+    lo_round: int | None = Field(
+        default=None,
+        description="Earliest round implied by the seller's words, as an absolute round "
+        "number (e.g. 'within 1-2 rounds' closing in round 3 -> 4). Null if no lower bound "
+        "is implied.",
+    )
+    hi_round: int | None = Field(
+        default=None,
+        description="Latest round implied by the seller's words, as an absolute round number. "
+        "Null if no upper bound is implied.",
+    )
+    reason: str = Field(description="One plain sentence for the record.")
+    quote: str = Field(
+        default="",
+        description="The words the extraction turns on, copied WORD FOR WORD. Empty if "
+        "has_interval is false.",
+    )
+
+
 # --------------------------------------------------------------------------
 # Durable record
 # --------------------------------------------------------------------------
