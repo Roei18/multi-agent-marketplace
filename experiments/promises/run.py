@@ -111,6 +111,14 @@ async def main() -> None:
                     help="model for the single seller named by --strong-seller (e.g. "
                     "openai/gpt-4o), to compare one stronger agent against otherwise-"
                     "identical competitors")
+    ap.add_argument("--strong-buyer", default=None,
+                    help="id of the ONE buyer to single out with --strong-buyer-model "
+                    "(default: the first buyer in the run) — everyone else stays on the "
+                    "default model, or --buyer-model if that is also given")
+    ap.add_argument("--strong-buyer-model", default=None,
+                    help="model for the single buyer named by --strong-buyer (e.g. "
+                    "openai/gpt-4o), to compare one stronger agent against otherwise-"
+                    "identical competitors")
     ap.add_argument("--tag", default="",
                     help="label inserted into the saved filename (e.g. a model name)")
     ap.add_argument("--quiet", action="store_true")
@@ -153,10 +161,15 @@ async def main() -> None:
     if args.strong_seller_model:
         print(f"STRONG SELLER — {args.strong_seller or '(first seller)'} runs "
               f"{args.strong_seller_model}, everyone else on the default")
+    if args.strong_buyer_model:
+        print(f"STRONG BUYER — {args.strong_buyer or '(first buyer)'} runs "
+              f"{args.strong_buyer_model}, everyone else on the default")
     result = await run_market(s, seed=args.seed, verbose=not args.quiet,
                               buyer_model=args.buyer_model, seller_model=args.seller_model,
                               strong_seller=args.strong_seller,
-                              strong_seller_model=args.strong_seller_model)
+                              strong_seller_model=args.strong_seller_model,
+                              strong_buyer=args.strong_buyer,
+                              strong_buyer_model=args.strong_buyer_model)
     path = save(result, tag=args.tag)
     report(result)
     if args.audit:

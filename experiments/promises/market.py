@@ -375,7 +375,9 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                      buyer_model: str | None = None,
                      seller_model: str | None = None,
                      strong_seller: str | None = None,
-                     strong_seller_model: str | None = None) -> RunResult:
+                     strong_seller_model: str | None = None,
+                     strong_buyer: str | None = None,
+                     strong_buyer_model: str | None = None) -> RunResult:
     # Two independent random processes, each seeded the same, so supply is NOT
     # perturbed by how the negotiation consumes randomness — baseline and every
     # other arm face the SAME per-round supply at a given seed.
@@ -401,6 +403,16 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
               for bid, nm in BUYERS[:scenario.n_buyers]}
     for b in buyers.values():
         b.agent.model = buyer_model
+    if strong_buyer_model:
+        # Single-buyer model probe: everyone else stays on the default (or on
+        # buyer_model, if that was also given); this one buyer alone runs on a
+        # different (typically stronger) model, so its behavior can be compared
+        # head-to-head against otherwise-identical competitors.
+        target = strong_buyer or next(iter(buyers))
+        if target not in buyers:
+            raise SystemExit(f"--strong-buyer {target!r} is not among this run's "
+                             f"{scenario.n_buyers} buyers ({', '.join(buyers)})")
+        buyers[target].agent.model = strong_buyer_model
     names = {b.id: b.agent.name for b in buyers.values()}
 
     deals: list[Deal] = []
