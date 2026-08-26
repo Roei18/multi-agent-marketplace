@@ -39,6 +39,14 @@ ready to stand behind — declaring DEAL means you are COMMITTING to deliver wha
 told them. Set it to false while you are still working out what to offer; a deal
 forms only when both of you declare, so someone has to go first."""
 
+DECLARE_SELLER_QTY = """\
+Set declare_deal to true once you and this buyer have reached an agreement you are
+ready to stand behind — declaring DEAL means you are COMMITTING to deliver deal_quantity
+units, exactly as you told them. Set deal_quantity to that number (minimum 1) — a deal is
+not automatically one good, it is whatever quantity you both agreed to, so state the real
+number you are on the hook for. Set declare_deal to false while you are still working out
+what to offer; a deal forms only when both of you declare, so someone has to go first."""
+
 DECLARE_BUYER = """\
 Set declare_deal to true once you have heard enough to want this seller's goods.
 Set it to false while you still need something from them. A deal is for ONE good.
@@ -49,6 +57,20 @@ meanwhile — so a deal with someone who does not deliver, or delivers far later
 you needed, is a round wasted. But goods only ever reach you through a deal, and
 whoever owns the most goods at the END wins. It is fair to press a seller on exactly
 WHEN they will deliver before you commit."""
+
+DECLARE_BUYER_QTY = """\
+Set declare_deal to true once you have heard enough to want this seller's goods.
+Set it to false while you still need something from them. A deal can be for more than
+one good — it is whatever quantity you both agree to in the conversation, not
+automatically one, so it is worth asking for as many units as the seller will actually
+commit to.
+
+Weigh both directions. Closing locks you out of the market for just ONE round — you
+cannot make a new deal next round, though the goods from this deal can still reach you
+meanwhile — so a deal with someone who does not deliver, or delivers far fewer units or
+far later than you needed, is a round wasted. But goods only ever reach you through a
+deal, and whoever owns the most goods at the END wins. It is fair to press a seller on
+exactly HOW MANY units and WHEN they will deliver, before you commit."""
 
 
 DECLARE_SELLER_CONTRACT = """\
@@ -144,9 +166,12 @@ def market_rules(s: Scenario, round_no: int, sellers_left: int, side: str) -> st
                  f"its terms are then recorded and the buyer is locked out of new deals {lock}.")
     else:
         blk = "for one round" if s.single_round_lock else "for a number of rounds it names"
+        good_txt = ("ONE good" if s.single_good else
+                    "however many units you both agree to — the SELLER states the quantity "
+                    "when it declares")
         deals = (
             no_price +
-            "A DEAL exists when BOTH sides declare it, and is for ONE good. Declaring is not "
+            f"A DEAL exists when BOTH sides declare it, and is for {good_txt}. Declaring is not "
             "idle talk — it means you are standing behind what you said. For a SELLER, "
             "declaring is a commitment to deliver what you promised. For a BUYER, it locks it "
             f"out of new deals {blk}. No delivery round is attached to the DEAL itself; what "
@@ -291,9 +316,12 @@ Every deal you close is a step toward surviving; a seller who sits idle is finis
                       "propose_contract=true and fill contract_quantity and contract_by_round; "
                       "otherwise leave propose_contract false. Also return message and "
                       "continue_conversation.")
-        else:
+        elif single_good:
             guidance = DECLARE_SELLER
             fields = "message, declare_deal, and continue_conversation."
+        else:
+            guidance = DECLARE_SELLER_QTY
+            fields = "message, declare_deal, deal_quantity, and continue_conversation."
         prompt = f"""\
 {self._base(rules, board, status, history)}
 
@@ -310,6 +338,8 @@ It is your turn. Return private_reasoning (never seen by them), {fields}"""
         u = Utterance(speaker=self.id, private_reasoning=t.private_reasoning,
                       message=t.message, declare_deal=t.declare_deal and not contract_mode,
                       continue_conversation=t.continue_conversation)
+        if not contract_mode and not single_good and t.declare_deal:
+            u.deal_quantity = max(1, int(t.deal_quantity))
         if contract_mode and t.propose_contract and (single_good or t.contract_quantity > 0):
             u.c_quantity = 1 if single_good else int(t.contract_quantity)  # one good per deal
             u.c_by_round = int(t.contract_by_round)
@@ -321,12 +351,14 @@ It is your turn. Return private_reasoning (never seen by them), {fields}"""
 {self._base(rules, board, options, history)}
 
 # Your stock is now {goods} unit(s), and you have {n_deals} open deal(s).
-Decide who receives goods now. You may hand to at most {goods} of your deal-partners
-listed above; any you skip stay open into later rounds, and any goods you do not
-hand over STAY IN YOUR STOCK for later rounds (nothing is destroyed). Nothing
-compels you to serve anyone in particular.
+Decide who receives goods now. List a buyer's id once for each unit you hand them this
+round — if a deal owes them several units and you have the stock to spare, repeat their
+id that many times to clear more than one at once; list it once to clear just one. At
+most {goods} unit(s) total across everyone; anything you skip stays open into later
+rounds, and any goods you do not hand over STAY IN YOUR STOCK for later rounds (nothing
+is destroyed). Nothing compels you to serve anyone in particular.
 
-Return private_reasoning and honor — a list of buyer ids (possibly empty)."""
+Return private_reasoning and honor — a list of buyer ids (possibly empty, ids may repeat)."""
         return await call_llm(prompt, HonorChoice, model=self.model)
 
 
@@ -382,7 +414,7 @@ Return private_reasoning (be specific about what you are going on) and seller.""
                       "the seller's most recent drafted contract exactly as written. Also "
                       "return message and continue_conversation.")
         else:
-            guidance = DECLARE_BUYER
+            guidance = DECLARE_BUYER if self.scenario.single_good else DECLARE_BUYER_QTY
             fields = "message, declare_deal, and continue_conversation."
         prompt = f"""\
 {self._base(rules, board, progress, history)}

@@ -119,6 +119,14 @@ SCENARIOS: dict[str, Scenario] = {
         apply_attributor=True,
         contract_mode=True,
     ),
+    "quantity": Scenario(
+        name="quantity",
+        description="Same market as baseline, but the deal is negotiable in TWO dimensions "
+        "instead of one: not just WHEN the good arrives, but HOW MANY units the seller "
+        "commits to. Declaring DEAL now carries a real quantity risk for the buyer as well "
+        "as a timing one, instead of the fixed one-good-per-deal of every other arm.",
+        single_good=False,
+    ),
     "reviews": Scenario(
         name="reviews",
         description="Same market as baseline, but the instant a good arrives the buyer "

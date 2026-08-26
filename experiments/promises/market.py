@@ -199,17 +199,20 @@ def seller_status_view(sst: SellerState, deals: list[Deal],
     over-commitment, spelled out rather than implied across two separate sections."""
     open_deals = [d for d in deals if d.seller == sst.id and d.outstanding]
     n_open = sst.deals_closed - sst.deals_delivered
+    n_open_units = sum(d.quantity - d.delivered_qty for d in open_deals)
     if open_deals:
         lines = "\n".join(
-            f"  {d.buyer} {buyers[d.buyer].agent.name} — declared in round {d.closed_round}"
+            f"  {d.buyer} {buyers[d.buyer].agent.name} — declared in round {d.closed_round}, "
+            f"{d.quantity - d.delivered_qty}/{d.quantity} unit(s) still owed"
             for d in sorted(open_deals, key=lambda d: d.closed_round))
     else:
         lines = "  None — you owe nobody."
     mean = sst.agent.p / (1 - sst.agent.p)
-    eta = f"about {n_open / mean:.1f} more rounds" if mean > 0 and n_open > 0 else "N/A"
+    eta = (f"about {n_open_units / mean:.1f} more rounds"
+          if mean > 0 and n_open_units > 0 else "N/A")
     return (
         f"Deals closed so far: {sst.deals_closed}. Delivered: {sst.deals_delivered}. "
-        f"Still open (undelivered): {n_open}.\n"
+        f"Still open (undelivered): {n_open} deal(s), {n_open_units} unit(s) total.\n"
         f"Goods drawn so far (realized): {sst.goods_drawn}, against an average rate of "
         f"{mean:.2f}/round. At that average rate, clearing your CURRENT open backlog "
         f"alone — before any new deal you take on now — would take {eta}.\n\n"
@@ -245,8 +248,9 @@ def progress_view(b: BuyerState, deals: list[Deal], round_no: int, s: Scenario) 
     vs. delivered, and who it's still owed by."""
     live = [d for d in deals if d.buyer == b.id and d.outstanding]
     n_open = b.deals_closed - b.deals_delivered
-    waiting = (", ".join(f"{d.seller} (since round {d.closed_round})" for d in live)
-               if live else "nobody")
+    waiting = (", ".join(
+        f"{d.seller} (since round {d.closed_round}, {d.quantity - d.delivered_qty} unit(s) owed)"
+        for d in live) if live else "nobody")
     return (f"You own {b.owned} good(s). Deals closed so far: {b.deals_closed}. "
             f"Delivered: {b.deals_delivered}. Still open (waiting on): {n_open}. "
             f"Round {round_no} of {s.n_rounds} (only your final holdings decide the "
@@ -303,6 +307,8 @@ async def negotiate(sst: SellerState, bst: BuyerState, *, scenario, rounds, deal
         else:
             if msg.declare_deal and msg.speaker == sst.id:
                 conv.seller_declared = True
+                if not scenario.single_good:
+                    conv.seller_deal_quantity = max(1, int(msg.deal_quantity))
             if msg.declare_deal and msg.speaker == bst.id:
                 conv.buyer_declared = True
                 conv.buyer_deal_rounds = max(1, int(msg.deal_rounds))
@@ -517,18 +523,22 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                                       f"exp_supply={exp:.2f} open={open_now}")
                         else:
                             lk = 1 if scenario.single_round_lock else conv.buyer_deal_rounds
+                            qty = (1 if scenario.single_good
+                                  else max(1, conv.seller_deal_quantity))
                             deals.append(Deal(
                                 id=len(deals), buyer=b.id, seller=sid, closed_round=round_no,
-                                lock_rounds=lk, seller_expected_supply=round(exp, 3),
+                                lock_rounds=lk, quantity=qty, committed_qty=qty,
+                                seller_expected_supply=round(exp, 3),
                                 open_deals_at_close=open_now, review_round=review_round))
                             b.locked_until = round_no + lk
                             b.rounds_locked += lk
-                            b.note(sid, f"round {round_no}: you both declared DEAL; you sit out "
-                                        f"{lk} round(s).")
+                            b.note(sid, f"round {round_no}: you both declared DEAL for "
+                                        f"{qty} unit(s); you sit out {lk} round(s).")
                             if verbose:
                                 blocked = (f" (lawyer blocked {conv.lawyer_blocked_count}x)"
                                            if conv.lawyer_blocked_count else "")
-                                print(f"    DEAL {b.id}~{sid} lock={conv.buyer_deal_rounds} "
+                                print(f"    DEAL {b.id}~{sid} qty={qty} "
+                                      f"lock={conv.buyer_deal_rounds} "
                                       f"exp_supply={exp:.2f} open={open_now}{blocked}")
                     else:
                         note = "talked, no deal."

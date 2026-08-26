@@ -45,6 +45,13 @@ class SellerTurn(BaseModel):
         default=0,
         description="Contract arm only: the round by which your contract promises delivery.",
     )
+    # Free-text quantity arm only — ignored otherwise (contract arm uses contract_quantity).
+    deal_quantity: int = Field(
+        default=1,
+        description="Only meaningful when declare_deal is true, in a market where quantity is "
+        "negotiable: how many units you are committing to deliver on this deal. Minimum 1 — "
+        "this is not automatically one good, it is whatever quantity you both agreed to.",
+    )
     continue_conversation: bool = Field(
         default=True, description="True to keep talking. False to end with no deal."
     )
@@ -90,8 +97,10 @@ class HonorChoice(BaseModel):
         description="Why these buyers and not the others. Be candid about setting deals aside."
     )
     honor: list[str] = Field(
-        description="Buyer ids you hand goods to this round. At most as many as you drew, "
-        "each one a buyer you have an open deal with."
+        description="Buyer ids you hand a unit to this round, one entry PER UNIT — at most as "
+        "many entries as you have to give. If one deal owes a buyer several units and you have "
+        "the stock to spare, list their id that many times to clear more than one unit of it "
+        "this round; list it once to clear just one and leave the rest owed for later."
     )
 
 
@@ -244,6 +253,7 @@ class Utterance(BaseModel):
     message: str
     declare_deal: bool = False
     deal_rounds: int = -1
+    deal_quantity: int = -1
     review_round: int = -1
     # arm 4 only
     proposed_contract: str = ""
@@ -264,6 +274,10 @@ class Negotiation(BaseModel):
     buyer_declared: bool = False
     closed: bool = False
     buyer_deal_rounds: int = -1
+    # free-text quantity arm: the seller's stated commitment, captured whenever it declares
+    # (mirrors buyer_deal_rounds) — the seller incurs the delivery obligation, so its number
+    # is the one that governs the resulting Deal.quantity.
+    seller_deal_quantity: int = -1
     buyer_review_round: int = -1
     # arm 3 (lawyer): recorded so the lawyer's own error rate can be scored later
     lawyer_vague: bool | None = None
@@ -280,8 +294,9 @@ class Deal(BaseModel):
     seller: str
     closed_round: int
     lock_rounds: int
-    # Mechanical delivery. Free-text deals are a single unit with no deadline;
-    # the contract arm sets quantity and a by_round deadline.
+    # Mechanical delivery. Free-text deals are single-unit with no deadline unless
+    # single_good is off (quantity arm), in which case the seller's stated deal_quantity
+    # governs; the contract arm sets both quantity and a by_round deadline.
     quantity: int = 1
     by_round: int = -1
     delivered_qty: int = 0
