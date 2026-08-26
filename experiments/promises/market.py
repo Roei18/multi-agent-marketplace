@@ -18,7 +18,7 @@ import asyncio
 import random
 import re
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from .agents import (
     LAWYER_SPEAKER,
@@ -91,14 +91,10 @@ class BuyerState:
     rounds_locked: int = 0
     deals_closed: int = 0      # bookkept live: every deal it has ever declared
     deals_delivered: int = 0   # bookkept live: of those, how many actually arrived
-    ledger: dict[str, list[str]] = field(default_factory=dict)
 
     @property
     def id(self) -> str:
         return self.agent.id
-
-    def note(self, seller: str, line: str) -> None:
-        self.ledger.setdefault(seller, []).append(line)
 
 
 def estimate_llm_calls(s: Scenario) -> tuple[int, int]:
@@ -220,7 +216,24 @@ def seller_status_view(sst: SellerState, deals: list[Deal],
     )
 
 
-def seller_history(sid: str, rounds: list[RoundRecord], names: dict[str, str]) -> str:
+def _outcome_line(d: Deal | None) -> str | None:
+    """One line on what came of a closed deal -- what you can actually learn from
+    re-reading your own past turns depends on knowing how they turned out, not just
+    what was said."""
+    if d is None:
+        return None
+    if d.delivered_round >= 0:
+        return f"  -> delivered in round {d.delivered_round} ({d.delivered_qty}/{d.quantity} unit(s))"
+    return f"  -> not yet delivered ({d.delivered_qty}/{d.quantity} unit(s) so far)"
+
+
+def seller_history(sid: str, rounds: list[RoundRecord], deals: list[Deal],
+                   names: dict[str, str]) -> str:
+    """Last 6 negotiations this seller has had, in order, INCLUDING its own
+    private_reasoning from each of its own turns (never the buyer's) and how each
+    closed deal turned out -- so it can look back at what it said and thought last
+    time before deciding what to say now, not just reason about the turn in front
+    of it. Mirrors buyer_history exactly."""
     mine = [n for rec in rounds for n in rec.negotiations if n.seller == sid]
     if not mine:
         return "None yet."
@@ -229,17 +242,47 @@ def seller_history(sid: str, rounds: list[RoundRecord], names: dict[str, str]) -
         out.append(f"--- Round {n.round}, with {names[n.buyer]} "
                    f"({'DEAL' if n.closed else 'no deal'}) ---")
         for m in n.messages:
-            out.append(f"  {'You' if m.speaker == sid else names[n.buyer]}: {m.message}")
+            if m.speaker == sid:
+                out.append(f"  You: {m.message}  [your private reasoning at the time: "
+                           f"{m.private_reasoning}]")
+            else:
+                out.append(f"  {names[n.buyer]}: {m.message}")
+        if n.closed:
+            d = next((x for x in deals if x.seller == sid and x.buyer == n.buyer
+                      and x.closed_round == n.round), None)
+            line = _outcome_line(d)
+            if line:
+                out.append(line)
     return "\n".join(out)
 
 
-def buyer_history(b: BuyerState, sellers: dict[str, SellerState]) -> str:
-    if not b.ledger:
+def buyer_history(b: BuyerState, sellers: dict[str, SellerState], rounds: list[RoundRecord],
+                  deals: list[Deal], names: dict[str, str]) -> str:
+    """Last 6 negotiations this buyer has had, in order, INCLUDING its own
+    private_reasoning from each of its own turns (never the seller's) and how each
+    closed deal turned out. Mirrors seller_history exactly -- previously this was
+    just a one-line-per-event ledger with no transcript and no reasoning at all,
+    giving the buyer far less to reflect on than the seller had."""
+    mine = [n for rec in rounds for n in rec.negotiations if n.buyer == b.id]
+    if not mine:
         return "Nothing yet."
     out = []
-    for sid, events in b.ledger.items():
-        out.append(f"--- {sellers[sid].name} ({sid}) ---")
-        out.extend(f"  {e}" for e in events)
+    for n in mine[-6:]:
+        seller_name = sellers[n.seller].name
+        out.append(f"--- Round {n.round}, with {seller_name} ({n.seller}) "
+                   f"({'DEAL' if n.closed else 'no deal'}) ---")
+        for m in n.messages:
+            if m.speaker == b.id:
+                out.append(f"  You: {m.message}  [your private reasoning at the time: "
+                           f"{m.private_reasoning}]")
+            else:
+                out.append(f"  {seller_name}: {m.message}")
+        if n.closed:
+            d = next((x for x in deals if x.buyer == b.id and x.seller == n.seller
+                      and x.closed_round == n.round), None)
+            line = _outcome_line(d)
+            if line:
+                out.append(line)
     return "\n".join(out)
 
 
@@ -282,7 +325,7 @@ async def negotiate(sst: SellerState, bst: BuyerState, *, scenario, rounds, deal
         return await sst.agent.turn(
             rules=seller_rules, board=seller_board,
             status=seller_status_view(sst, deals, buyers),
-            history=seller_history(sst.id, rounds, names),
+            history=seller_history(sst.id, rounds, deals, names),
             buyer_name=bst.agent.name, buyer_id=bst.id, conv=conv, opening=opening,
             max_messages=scenario.max_messages, contract_mode=cm,
             single_good=scenario.single_good)
@@ -291,7 +334,7 @@ async def negotiate(sst: SellerState, bst: BuyerState, *, scenario, rounds, deal
         return await bst.agent.turn(
             rules=buyer_rules, board=buyer_board,
             progress=progress_view(bst, deals, round_no, scenario),
-            history=buyer_history(bst, sellers_by_id),
+            history=buyer_history(bst, sellers_by_id, rounds, deals, names),
             seller_name=sst.agent.name, conv=conv, max_messages=scenario.max_messages,
             contract_mode=cm)
 
@@ -457,7 +500,8 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                     rules=market_rules(scenario, round_no, len(alive_ids), side="buyer"),
                     board=public_board(seller_rows(sellers, review_deals), buyer_rows(buyers)),
                     progress=progress_view(b, deals, round_no, scenario),
-                    history=buyer_history(b, sellers_by_id), options=options)
+                    history=buyer_history(b, sellers_by_id, rounds, deals, names),
+                    options=options)
                 pick = resolve_seller(ch.seller, sellers)
                 if pick is None:
                     return fallback[b.id], (f"{ch.private_reasoning} [named {ch.seller!r}, "
@@ -515,9 +559,6 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                                 open_deals_at_close=open_now, review_round=review_round))
                             b.locked_until = lock_until
                             b.rounds_locked += max(0, lock_until - round_no)
-                            lk = "1 round" if scenario.single_round_lock else f"round {T}"
-                            b.note(sid, f"round {round_no}: contract signed — {qty} unit(s) by "
-                                        f"round {T}; locked {lk}.")
                             if verbose:
                                 print(f"    CONTRACT {b.id}~{sid} {qty}u by r{T} "
                                       f"exp_supply={exp:.2f} open={open_now}")
@@ -532,19 +573,12 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                                 open_deals_at_close=open_now, review_round=review_round))
                             b.locked_until = round_no + lk
                             b.rounds_locked += lk
-                            b.note(sid, f"round {round_no}: you both declared DEAL for "
-                                        f"{qty} unit(s); you sit out {lk} round(s).")
                             if verbose:
                                 blocked = (f" (lawyer blocked {conv.lawyer_blocked_count}x)"
                                            if conv.lawyer_blocked_count else "")
                                 print(f"    DEAL {b.id}~{sid} qty={qty} "
                                       f"lock={conv.buyer_deal_rounds} "
                                       f"exp_supply={exp:.2f} open={open_now}{blocked}")
-                    else:
-                        note = "talked, no deal."
-                        if conv.lawyer_blocked_count and conv.lawyer_vague:
-                            note = "talked; lawyer blocked a vague commitment, no deal."
-                        b.note(sid, f"round {round_no}: {note}")
                 return out
 
             for convs in await asyncio.gather(*(serve(sid) for sid in queues)):
@@ -585,7 +619,7 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                         board=public_board(
                             seller_rows(sellers, deals if scenario.enable_reviews else None)),
                         goods=s.stock,
-                        history=seller_history(s.id, rounds + [rec], names),
+                        history=seller_history(s.id, rounds + [rec], deals, names),
                         options=seller_status_view(s, deals, buyers), n_deals=len(mine))
                     # The seller names BUYERS to honor; each mention fills that buyer's
                     # oldest still-open deal (naming a buyer twice fills two of its deals).
@@ -619,8 +653,6 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                             waited=round_no - d.closed_round)
                 handoffs.append(h)
                 rec.handoffs.append(h)
-                b.note(s.id, f"round {round_no}: they handed you a unit "
-                             f"({d.delivered_qty}/{d.quantity} on your deal).")
             rec.stock_carried[s.id] = s.stock
         rec.sold_this_round = {s.id: sum(1 for h in rec.handoffs if h.seller == s.id)
                                for s in sellers}
