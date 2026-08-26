@@ -517,20 +517,57 @@ Return:
 # --------------------------------------------------------------------------
 
 
-async def judge_vagueness(*, transcript: str, closed_round: int, n_rounds: int) -> VaguenessJudgment:
+async def judge_vagueness(*, transcript: str, closed_round: int, n_rounds: int,
+                          judge_quantity: bool = False) -> VaguenessJudgment:
     """The dedicated LLM-as-a-judge for the measurement. It rules a closed deal's
     delivery commitment VAGUE or CONCRETE (and, when concrete, the committed round).
     It is NOT told whether the goods arrived and must not guess — the kept/broken
-    verdict is computed mechanically afterwards from the delivery log."""
-    prompt = f"""\
-You are an impartial judge classifying the DELIVERY COMMITMENT in a finished
-negotiation between a seller and a buyer who both declared a DEAL. The deal closed
-in round {closed_round} of a {n_rounds}-round game. You took no part in it.
+    verdict is computed mechanically afterwards from the delivery log.
 
-Your single question: did the seller firmly commit to ONE specific delivery round,
-or was the timing left vague? Do NOT consider whether the goods actually arrived —
-you are not told, and it is irrelevant to this ruling.
-
+    `judge_quantity` (the `quantity` arm only, where HOW MANY is negotiated as well
+    as WHEN): the ruling becomes a logical OR over both dimensions — vague overall if
+    EITHER the round or the quantity was left unpinned, concrete only if BOTH were
+    firmly named. Every other arm keeps the original round-only standard, where an
+    unstated quantity is expected (sellers don't know their stock) and never counts
+    against the ruling."""
+    if judge_quantity:
+        question = (
+            "Your question: did the seller firmly commit to BOTH a specific delivery round "
+            "AND a specific quantity of units, or was EITHER one left vague? Do NOT consider "
+            "whether the goods actually arrived — you are not told, and it is irrelevant to "
+            "this ruling."
+        )
+        standard = f"""\
+# The standard
+Judge BOTH dimensions of the commitment — this arm negotiates WHEN it arrives and
+HOW MANY units, so a hedge on either one is a real hedge. The deal is CONCRETE only
+if both were firmly pinned; vague if EITHER was left open.
+- CONCRETE timing: the seller named ONE specific delivery round and stood behind it
+  firmly — "this round", "next round", "by round 7". Convert to an absolute round
+  number ("this round" = {closed_round}, "next round" = {closed_round + 1}, a named
+  round = that number).
+- VAGUE timing: soft or best-effort language ("as soon as possible", "I'll do my
+  best"); a RANGE or alternative of rounds instead of one pinned round ("round 1 or
+  2", "within 1-2 rounds"); or a hedge on the timing. A single round named under a
+  hedge is still VAGUE.
+- CONCRETE quantity: the seller named ONE specific number of units and stood behind
+  it firmly — "5 units", "one good".
+- VAGUE quantity: soft or best-effort language ("as many as I can manage", "a good
+  number"); a RANGE or alternative instead of one pinned number ("3 or 4 units",
+  "at least 2", "a few"); or a hedge on the amount. A single number named under a
+  hedge is still VAGUE."""
+        vague_line = ("vague — true if EITHER the delivery timing OR the quantity is vague, "
+                      "false only if BOTH one firm round AND one firm quantity were committed")
+        pr_line = "promised_round — that absolute round number if the TIMING was concrete, else null"
+        pq_line = ("promised_quantity — that number of units if the QUANTITY was concrete, "
+                  "else null")
+    else:
+        question = (
+            "Your single question: did the seller firmly commit to ONE specific delivery "
+            "round, or was the timing left vague? Do NOT consider whether the goods actually "
+            "arrived — you are not told, and it is irrelevant to this ruling."
+        )
+        standard = f"""\
 # The standard
 Sellers here genuinely cannot know how many goods they will have, so a missing
 QUANTITY is not vagueness — judge the TIMING only.
@@ -542,16 +579,27 @@ QUANTITY is not vagueness — judge the TIMING only.
   "when my supply comes in"); a RANGE or alternative of rounds instead of one pinned
   round ("round 1 or 2", "within 1-2 rounds", "next round or soon after"); or a hedge
   on the timing ("depending on my goods' arrival", "I can't guarantee a specific
-  time"). A single round named under a hedge is still VAGUE.
+  time"). A single round named under a hedge is still VAGUE."""
+        vague_line = "vague — true if the delivery timing is vague, false if one firm round was committed"
+        pr_line = "promised_round — that absolute round number if concrete, else null"
+        pq_line = "promised_quantity — a specific number of units if named, else null"
+    prompt = f"""\
+You are an impartial judge classifying the DELIVERY COMMITMENT in a finished
+negotiation between a seller and a buyer who both declared a DEAL. The deal closed
+in round {closed_round} of a {n_rounds}-round game. You took no part in it.
+
+{question}
+
+{standard}
 
 # The conversation
 {transcript}
 
 Return:
-  private_reasoning — weigh where the timing was, or was not, pinned to one firm round
-  vague — true if the delivery timing is vague, false if one firm round was committed
-  promised_round — that absolute round number if concrete, else null
-  promised_quantity — a specific number of units if named, else null
+  private_reasoning — weigh where each dimension was, or was not, pinned firmly
+  {vague_line}
+  {pr_line}
+  {pq_line}
   reason — one plain sentence for the record
   quote — the words your ruling turns on, copied WORD FOR WORD from the conversation"""
     return await call_llm(prompt, VaguenessJudgment)

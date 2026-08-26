@@ -661,6 +661,7 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
               n_rounds=scenario.n_rounds, deals_closed=len(deals), start=start)
     await measure_promises(deals, rounds, sellers_by_id, names,
                            n_rounds=scenario.n_rounds, contract_mode=scenario.contract_mode,
+                           judge_quantity=not scenario.single_good and not scenario.contract_mode,
                            verbose=verbose)
     heartbeat(scenario.name, seed, p0, phase="done", round_no=scenario.n_rounds,
               n_rounds=scenario.n_rounds, deals_closed=len(deals), start=start)
@@ -668,9 +669,10 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
 
 
 async def measure_promises(deals, rounds, sellers_by_id, names, *, n_rounds,
-                           contract_mode, verbose) -> None:
+                           contract_mode, judge_quantity=False, verbose) -> None:
     """Fill each deal's promise (extracted, or read from the contract struct) and
-    verdict (arithmetic)."""
+    verdict (arithmetic). `judge_quantity` (the `quantity` arm only): vagueness
+    becomes a logical OR over round AND quantity — see judge_vagueness()."""
     conv_by_key = {(n.round, n.buyer, n.seller): n
                    for rec in rounds for n in rec.negotiations if n.closed}
 
@@ -688,7 +690,7 @@ async def measure_promises(deals, rounds, sellers_by_id, names, *, n_rounds,
             return
         transcript = render_plain(conv, sellers_by_id[d.seller].name, names[d.buyer])
         j = await judge_vagueness(transcript=transcript, closed_round=d.closed_round,
-                                  n_rounds=n_rounds)
+                                  n_rounds=n_rounds, judge_quantity=judge_quantity)
         pr = None if j.vague else j.promised_round
         if pr is not None and pr < 1:      # guard against a 0/negative "no round"
             pr = None
