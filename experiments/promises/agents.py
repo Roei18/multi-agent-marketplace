@@ -262,6 +262,8 @@ class SellerAgent:
         self.id, self.name, self.blurb, self.p = sid, name, blurb, p
         self.model: str | None = None   # optional per-role model override (probe)
         self.reasoning_effort: str | int | None = None   # optional per-role reasoning-effort override
+        self.extra_guidance: str | None = None   # sandbox-only prompt addition (single_negotiation.py);
+                                                  # never set by run.py / real experiment runs
 
     def _supply(self) -> str:
         mean = self.p / (1 - self.p)
@@ -326,6 +328,8 @@ Every deal you close is a step toward surviving; a seller who sits idle is finis
         else:
             guidance = DECLARE_SELLER_QTY
             fields = "message, declare_deal, deal_quantity, and continue_conversation."
+        if self.extra_guidance:
+            guidance = f"{guidance}\n\n{self.extra_guidance}"
         prompt = f"""\
 {self._base(rules, board, status, history)}
 
@@ -378,6 +382,8 @@ class BuyerAgent:
         self.id, self.name, self.scenario = bid, name, scenario
         self.model: str | None = None   # optional per-role model override (probe)
         self.reasoning_effort: str | int | None = None   # optional per-role reasoning-effort override
+        self.extra_guidance: str | None = None   # sandbox-only prompt addition (single_negotiation.py);
+                                                  # never set by run.py / real experiment runs
 
     def _base(self, rules, board, progress, history) -> str:
         return f"""\
@@ -424,6 +430,8 @@ Return private_reasoning (be specific about what you are going on) and seller.""
         else:
             guidance = DECLARE_BUYER if self.scenario.single_good else DECLARE_BUYER_QTY
             fields = "message, declare_deal, and continue_conversation."
+        if self.extra_guidance:
+            guidance = f"{guidance}\n\n{self.extra_guidance}"
         prompt = f"""\
 {self._base(rules, board, progress, history)}
 

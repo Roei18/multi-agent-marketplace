@@ -142,6 +142,12 @@ async def main() -> None:
     ap.add_argument("--buyer-reasoning-effort", default=None,
                     choices=["minimal", "low", "medium", "high"],
                     help="override this buyer's reasoning effort (default: whatever LLM_REASONING_EFFORT is)")
+    ap.add_argument("--seller-extra", default=None,
+                    help="sandbox-only extra instruction appended to this seller's guidance "
+                    "for this negotiation only -- never touches the real DECLARE_SELLER prompt")
+    ap.add_argument("--buyer-extra", default=None,
+                    help="sandbox-only extra instruction appended to this buyer's guidance "
+                    "for this negotiation only -- never touches the real DECLARE_BUYER prompt")
     args = ap.parse_args()
 
     r = RunResult.model_validate(json.loads(Path(args.source).read_text()))
@@ -167,6 +173,10 @@ async def main() -> None:
         sellers[args.seller].agent.reasoning_effort = args.seller_reasoning_effort
     if args.buyer_reasoning_effort:
         buyers[args.buyer].agent.reasoning_effort = args.buyer_reasoning_effort
+    if args.seller_extra:
+        sellers[args.seller].agent.extra_guidance = args.seller_extra
+    if args.buyer_extra:
+        buyers[args.buyer].agent.extra_guidance = args.buyer_extra
 
     sst, bst = sellers[args.seller], buyers[args.buyer]
     print(f"scenario={scenario.name}  round={args.round}/{scenario.n_rounds}  "
@@ -178,6 +188,10 @@ async def main() -> None:
     print(f"{args.buyer} {bst.agent.name}: owned={bst.owned} deals_closed={bst.deals_closed} "
          f"delivered={bst.deals_delivered} model={bst.agent.model or '(default)'} "
          f"reasoning_effort={bst.agent.reasoning_effort or '(default)'}")
+    if sst.agent.extra_guidance:
+        print(f"[seller extra guidance]: {sst.agent.extra_guidance}")
+    if bst.agent.extra_guidance:
+        print(f"[buyer extra guidance]: {bst.agent.extra_guidance}")
     print("=" * 88)
 
     conv = await negotiate(
