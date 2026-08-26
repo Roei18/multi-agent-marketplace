@@ -261,6 +261,7 @@ class SellerAgent:
     def __init__(self, sid: str, name: str, blurb: str, p: float):
         self.id, self.name, self.blurb, self.p = sid, name, blurb, p
         self.model: str | None = None   # optional per-role model override (probe)
+        self.reasoning_effort: str | int | None = None   # optional per-role reasoning-effort override
 
     def _supply(self) -> str:
         mean = self.p / (1 - self.p)
@@ -337,7 +338,8 @@ Every deal you close is a step toward surviving; a seller who sits idle is finis
 {render(conv, self.id, buyer_name)}
 
 It is your turn. Return private_reasoning (never seen by them), {fields}"""
-        t: SellerTurn = await call_llm(prompt, SellerTurn, model=self.model)
+        t: SellerTurn = await call_llm(prompt, SellerTurn, model=self.model,
+                                       reasoning_effort=self.reasoning_effort)
         u = Utterance(speaker=self.id, private_reasoning=t.private_reasoning,
                       message=t.message, declare_deal=t.declare_deal and not contract_mode,
                       continue_conversation=t.continue_conversation)
@@ -362,7 +364,8 @@ rounds, and any goods you do not hand over STAY IN YOUR STOCK for later rounds (
 is destroyed). Nothing compels you to serve anyone in particular.
 
 Return private_reasoning and honor — a list of buyer ids (possibly empty, ids may repeat)."""
-        return await call_llm(prompt, HonorChoice, model=self.model)
+        return await call_llm(prompt, HonorChoice, model=self.model,
+                              reasoning_effort=self.reasoning_effort)
 
 
 # --------------------------------------------------------------------------
@@ -374,6 +377,7 @@ class BuyerAgent:
     def __init__(self, bid: str, name: str, scenario: Scenario):
         self.id, self.name, self.scenario = bid, name, scenario
         self.model: str | None = None   # optional per-role model override (probe)
+        self.reasoning_effort: str | int | None = None   # optional per-role reasoning-effort override
 
     def _base(self, rules, board, progress, history) -> str:
         return f"""\
@@ -406,7 +410,8 @@ Still in the market:
 {chr(10).join(options)}
 
 Return private_reasoning (be specific about what you are going on) and seller."""
-        return await call_llm(prompt, ApproachChoice, model=self.model)
+        return await call_llm(prompt, ApproachChoice, model=self.model,
+                              reasoning_effort=self.reasoning_effort)
 
     async def turn(self, *, rules, board, progress, history, seller_name, conv,
                    max_messages, contract_mode=False) -> Utterance:
@@ -433,7 +438,8 @@ Talk however you see fit. What you want is goods, as many and as soon as possibl
 {render(conv, self.id, seller_name)}
 
 It is your turn. Return private_reasoning (never seen by them), {fields}"""
-        t: BuyerTurn = await call_llm(prompt, BuyerTurn, model=self.model)
+        t: BuyerTurn = await call_llm(prompt, BuyerTurn, model=self.model,
+                                      reasoning_effort=self.reasoning_effort)
         return Utterance(speaker=self.id, private_reasoning=t.private_reasoning,
                          message=t.message, declare_deal=t.declare_deal and not contract_mode,
                          deal_rounds=int(t.deal_rounds), review_round=int(t.review_round),
@@ -476,7 +482,8 @@ including you, since it shapes who future buyers trust — so be honest.
 
 Return private_reasoning (weigh what they promised against what happened), score (an
 integer from 1 to 5), and comment (one short public-facing sentence explaining it)."""
-        return await call_llm(prompt, ReviewJudgment, model=self.model)
+        return await call_llm(prompt, ReviewJudgment, model=self.model,
+                              reasoning_effort=self.reasoning_effort)
 
 
 # --------------------------------------------------------------------------

@@ -136,6 +136,12 @@ async def main() -> None:
                     "scale/history (default: whatever the source run used)")
     ap.add_argument("--seller-model", default=None, help="probe this seller with a different model")
     ap.add_argument("--buyer-model", default=None, help="probe this buyer with a different model")
+    ap.add_argument("--seller-reasoning-effort", default=None,
+                    choices=["minimal", "low", "medium", "high"],
+                    help="override this seller's reasoning effort (default: whatever LLM_REASONING_EFFORT is)")
+    ap.add_argument("--buyer-reasoning-effort", default=None,
+                    choices=["minimal", "low", "medium", "high"],
+                    help="override this buyer's reasoning effort (default: whatever LLM_REASONING_EFFORT is)")
     args = ap.parse_args()
 
     r = RunResult.model_validate(json.loads(Path(args.source).read_text()))
@@ -157,15 +163,21 @@ async def main() -> None:
         sellers[args.seller].agent.model = args.seller_model
     if args.buyer_model:
         buyers[args.buyer].agent.model = args.buyer_model
+    if args.seller_reasoning_effort:
+        sellers[args.seller].agent.reasoning_effort = args.seller_reasoning_effort
+    if args.buyer_reasoning_effort:
+        buyers[args.buyer].agent.reasoning_effort = args.buyer_reasoning_effort
 
     sst, bst = sellers[args.seller], buyers[args.buyer]
     print(f"scenario={scenario.name}  round={args.round}/{scenario.n_rounds}  "
          f"{'(scenario overridden, scale/history from source)' if args.scenario else ''}")
     print(f"{args.seller} {sst.name}: deals_closed={sst.deals_closed} "
          f"delivered={sst.deals_delivered} goods_drawn={sst.goods_drawn} stock~{sst.stock} "
-         f"p={sst.agent.p} model={sst.agent.model or '(default)'}")
+         f"p={sst.agent.p} model={sst.agent.model or '(default)'} "
+         f"reasoning_effort={sst.agent.reasoning_effort or '(default)'}")
     print(f"{args.buyer} {bst.agent.name}: owned={bst.owned} deals_closed={bst.deals_closed} "
-         f"delivered={bst.deals_delivered} model={bst.agent.model or '(default)'}")
+         f"delivered={bst.deals_delivered} model={bst.agent.model or '(default)'} "
+         f"reasoning_effort={bst.agent.reasoning_effort or '(default)'}")
     print("=" * 88)
 
     conv = await negotiate(

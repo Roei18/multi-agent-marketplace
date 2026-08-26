@@ -36,10 +36,12 @@ def _llm_kwargs() -> dict:
 
 
 async def call_llm(prompt: str, response_format: type[TModel], attempts: int = 5,
-                   model: str | None = None) -> TModel:
+                   model: str | None = None, reasoning_effort: str | int | None = None) -> TModel:
     kw = _llm_kwargs()
     if model:                      # per-call model override (e.g. a stronger buyer/seller)
         kw = {**kw, "model": model}
+    if reasoning_effort is not None:   # per-call reasoning-effort override
+        kw = {**kw, "reasoning_effort": reasoning_effort}
     delay = 3.0
     last: Exception | None = None
     for _ in range(attempts):
