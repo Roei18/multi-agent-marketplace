@@ -169,13 +169,16 @@ def market_rules(s: Scenario, round_no: int, sellers_left: int, side: str) -> st
         good_txt = ("ONE good" if s.single_good else
                     "however many units you both agree to — the SELLER states the quantity "
                     "when it declares")
+        one_good_note = ("" if not s.single_good else
+                         " Whatever either of you says about quantity, the deal is always for "
+                         "exactly one good — do not offer or ask for more than one.")
         deals = (
             no_price +
             f"A DEAL exists when BOTH sides declare it, and is for {good_txt}. Declaring is not "
             "idle talk — it means you are standing behind what you said. For a SELLER, "
             "declaring is a commitment to deliver what you promised. For a BUYER, it locks it "
             f"out of new deals {blk}. No delivery round is attached to the DEAL itself; what "
-            "was agreed is whatever your words conveyed."
+            "was agreed is whatever your words conveyed." + one_good_note
         )
         if s.use_lawyer:
             deals += (
