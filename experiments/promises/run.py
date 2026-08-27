@@ -111,6 +111,11 @@ async def main() -> None:
                     help="model for the single seller named by --strong-seller (e.g. "
                     "openai/gpt-4o), to compare one stronger agent against otherwise-"
                     "identical competitors")
+    ap.add_argument("--strong-seller-p", type=float, default=None,
+                    help="arrival probability p for ONLY the seller named by --strong-seller "
+                    "(default: the first seller) — everyone else stays at --p (or the scenario "
+                    "default), so a genuinely better-supplied seller can be compared against "
+                    "otherwise-identical competitors on the SAME model")
     ap.add_argument("--strong-buyer", default=None,
                     help="id of the ONE buyer to single out with --strong-buyer-model "
                     "(default: the first buyer in the run) — everyone else stays on the "
@@ -143,6 +148,15 @@ async def main() -> None:
     if args.p is not None:
         n = over.get("n_sellers", s.n_sellers)
         over["arrival_probs"] = (args.p,) * n
+    if args.strong_seller_p is not None:
+        n = over.get("n_sellers", s.n_sellers)
+        probs = list(over.get("arrival_probs", s.arrival_probs[:n]))
+        target = args.strong_seller or SELLERS[0][0]
+        idx = next((i for i, (sid, _, _) in enumerate(SELLERS[:n]) if sid == target), None)
+        if idx is None:
+            raise SystemExit(f"--strong-seller {target!r} not among the first {n} sellers")
+        probs[idx] = args.strong_seller_p
+        over["arrival_probs"] = tuple(probs)
     if over:
         s = replace(s, **over)
 
@@ -161,6 +175,9 @@ async def main() -> None:
     if args.strong_seller_model:
         print(f"STRONG SELLER — {args.strong_seller or '(first seller)'} runs "
               f"{args.strong_seller_model}, everyone else on the default")
+    if args.strong_seller_p is not None:
+        print(f"STRONG SELLER SUPPLY — {args.strong_seller or '(first seller)'} runs "
+              f"p={args.strong_seller_p}, everyone else p={args.p}")
     if args.strong_buyer_model:
         print(f"STRONG BUYER — {args.strong_buyer or '(first buyer)'} runs "
               f"{args.strong_buyer_model}, everyone else on the default")
