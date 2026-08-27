@@ -44,6 +44,7 @@ from .models import (
     RoundRecord,
     RunResult,
     SellerSummary,
+    StrategyEvent,
     Utterance,
 )
 from .scenarios import BUYERS, SELLERS, Scenario
@@ -437,6 +438,7 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                                            scenario.arrival_probs, strict=True)]
     for s in sellers:
         s.agent.model = seller_model     # None = keep the default model
+        s.agent.show_strategy = scenario.seller_strategy
     sellers_by_id = {s.id: s for s in sellers}
     if strong_seller_model:
         # Single-seller model probe: everyone else stays on the default (or on
@@ -467,6 +469,7 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
     deals: list[Deal] = []
     handoffs: list[Handoff] = []
     rounds: list[RoundRecord] = []
+    strategy_log: list[StrategyEvent] = []
     start = time.time()
     p0 = scenario.arrival_probs[0] if scenario.arrival_probs else 0.6
 
@@ -664,13 +667,41 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
         # buyer's committed round if it still hasn't arrived by then (so a
         # never-delivered deal still gets reviewed, unlike `reviews` above). Runs
         # after handoff, so a delivery landing this exact round is already visible.
+        # blind_reviews (reviews_strategy_blind): the checkpoint still fires on this
+        # same schedule, but no review is ever written -- d.review_score never gets
+        # set, so `due` naturally keeps matching this exact deal at this exact round
+        # (the round-equality checks below are one-shot) without a review ever landing.
         if scenario.review_on_commit:
             due = [d for d in deals if d.review_score is None
                   and (d.delivered_round == round_no or d.review_round == round_no)]
-            await asyncio.gather(*(
-                write_review(d, sellers_by_id[d.seller], buyers[d.buyer], rounds + [rec],
-                            names, scenario.n_rounds, as_of_round=round_no)
-                for d in due))
+            if not scenario.blind_reviews:
+                await asyncio.gather(*(
+                    write_review(d, sellers_by_id[d.seller], buyers[d.buyer], rounds + [rec],
+                                names, scenario.n_rounds, as_of_round=round_no)
+                    for d in due))
+
+            # seller_strategy: any seller with >=1 due deal this round gets ONE
+            # strategy-update call (not one per deal), reading its full review
+            # history (empty in the blind arm) plus its own status.
+            if scenario.seller_strategy and due:
+                due_sellers = sorted({d.seller for d in due})
+
+                async def reflect(sid: str):
+                    sst = sellers_by_id[sid]
+                    mine = [d for d in deals if d.seller == sid and d.review_score is not None]
+                    reviews_text = "\n".join(
+                        f"  {names[d.buyer]} (deal closed round {d.closed_round}): "
+                        f"{d.review_score}/5 — {d.review_comment}"
+                        for d in sorted(mine, key=lambda d: d.closed_round))
+                    prior = sst.agent.strategy
+                    result = await sst.agent.update_strategy(
+                        status=seller_status_view(sst, deals, buyers), reviews_text=reviews_text)
+                    strategy_log.append(StrategyEvent(
+                        round=round_no, seller=sid, reviews_seen=len(mine),
+                        prior_strategy=prior, private_reasoning=result.private_reasoning,
+                        updated_strategy=result.updated_strategy))
+
+                await asyncio.gather(*(reflect(sid) for sid in due_sellers))
 
         # 5. record round leader (informational only — the race is decided on final
         # holdings, so nothing is scored here).
@@ -697,7 +728,7 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                            verbose=verbose)
     heartbeat(scenario.name, seed, p0, phase="done", round_no=scenario.n_rounds,
               n_rounds=scenario.n_rounds, deals_closed=len(deals), start=start)
-    return summarise(scenario, seed, sellers, buyers, deals, handoffs, rounds)
+    return summarise(scenario, seed, sellers, buyers, deals, handoffs, rounds, strategy_log)
 
 
 async def measure_promises(deals, rounds, sellers_by_id, names, *, n_rounds,
@@ -741,7 +772,8 @@ async def measure_promises(deals, rounds, sellers_by_id, names, *, n_rounds,
               f"false-never={c['false-never']}  vague={c['vague']}")
 
 
-def summarise(scenario, seed, sellers, buyers, deals, handoffs, rounds) -> RunResult:
+def summarise(scenario, seed, sellers, buyers, deals, handoffs, rounds,
+             strategy_log: list[StrategyEvent] | None = None) -> RunResult:
     # The race is decided purely on goods owned at the end.
     champ = max(buyers.values(), key=lambda b: (b.owned, b.id))
 
@@ -798,4 +830,4 @@ def summarise(scenario, seed, sellers, buyers, deals, handoffs, rounds) -> RunRe
         rounds=rounds, deals=deals, handoffs=handoffs, sellers=ssum, buyers=bsum,
         seller_winner=seller_winner.id, seller_winner_name=seller_winner.name,
         buyer_champion=champ.id, buyer_champion_name=champ.agent.name,
-        measurements=measurements)
+        measurements=measurements, strategy_log=strategy_log or [])

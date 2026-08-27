@@ -163,6 +163,26 @@ class ReviewJudgment(BaseModel):
     )
 
 
+class StrategyUpdate(BaseModel):
+    """`reviews_strategy`(_blind) arms only. Fired for a seller whenever one of its
+    deals hits a review checkpoint. The seller reads its own accumulated reviews (none,
+    in the blind arm) and its current status, and may revise a persistent free-text
+    note that is shown back to it on every future turn -- a discrete, self-authored
+    strategy update, not just another turn's private_reasoning (which is never carried
+    forward)."""
+
+    private_reasoning: str = Field(
+        description="What, if anything, your reviews and your status suggest you should "
+        "do differently. Be candid about whether anything actually needs to change."
+    )
+    updated_strategy: str = Field(
+        default="",
+        description="Your new strategy note, replacing the old one in full -- this is what "
+        "you will see on every future turn. Keep it concrete and actionable. Carry over "
+        "anything from your old note still worth keeping; empty string clears it.",
+    )
+
+
 class LawyerReview(BaseModel):
     """Arm 3: the lawyer's ruling on a commitment, made BEFORE the deal closes."""
 
@@ -385,6 +405,18 @@ class BuyerSummary(BaseModel):
     rounds_locked: int
 
 
+class StrategyEvent(BaseModel):
+    """One entry in a seller's strategy history (`reviews_strategy`(_blind) arms only) --
+    the full trace of every revision, not just the final note, so the evolution is
+    inspectable after the fact."""
+    round: int
+    seller: str
+    reviews_seen: int          # how many of this seller's reviews existed at this point
+    prior_strategy: str
+    private_reasoning: str
+    updated_strategy: str
+
+
 class RunResult(BaseModel):
     scenario: str
     description: str
@@ -410,3 +442,4 @@ class RunResult(BaseModel):
     buyer_champion: str = ""
     buyer_champion_name: str = ""
     measurements: dict[str, float] = Field(default_factory=dict)
+    strategy_log: list[StrategyEvent] = Field(default_factory=list)

@@ -64,6 +64,13 @@ class Scenario:
     review_on_commit: bool = False    # reviews arm only: review at a buyer-committed round
                                       # (set when the deal closes) instead of on delivery, so
                                       # a seller that never delivers still gets reviewed
+    seller_strategy: bool = False     # a seller keeps a persistent, self-authored strategy
+                                      # note (shown on every future turn) and revises it
+                                      # whenever one of its deals hits a review checkpoint
+    blind_reviews: bool = False       # seller_strategy arm only: the buyer still names a
+                                      # review round as usual, but no review is ever actually
+                                      # written -- isolates the effect of the reflection loop
+                                      # itself from the effect of real review feedback
     # Standard across ALL arms (so the comparison is apples-to-apples):
     single_round_lock: bool = True    # a closed deal locks the buyer out for exactly ONE round
                                       # (an anti-spam guard), not until the delivery deadline
@@ -143,6 +150,28 @@ SCENARIOS: dict[str, Scenario] = {
         "its absence — so a seller that never delivers gets judged too, not just a late one.",
         enable_reviews=True,
         review_on_commit=True,
+    ),
+    "reviews_strategy": Scenario(
+        name="reviews_strategy",
+        description="Same as reviews_committed, but the seller isn't just reviewed — it is "
+        "shown its reviews. Whenever one of its deals hits a review checkpoint, the seller "
+        "reads every review it has ever received plus its own status, and may revise a "
+        "persistent strategy note that is shown to it on every future turn from then on.",
+        enable_reviews=True,
+        review_on_commit=True,
+        seller_strategy=True,
+    ),
+    "reviews_strategy_blind": Scenario(
+        name="reviews_strategy_blind",
+        description="Identical structure to reviews_strategy — the buyer still names a round "
+        "it would review the seller by, and the seller still gets a strategy-update checkpoint "
+        "at that same round — but no review is ever actually written, so the seller always "
+        "reflects on an empty review history. Isolates the effect of real review feedback from "
+        "the effect of just having a periodic self-reflection opportunity.",
+        enable_reviews=True,
+        review_on_commit=True,
+        seller_strategy=True,
+        blind_reviews=True,
     ),
     "contract_reviews": Scenario(
         name="contract_reviews",
