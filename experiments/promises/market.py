@@ -188,8 +188,22 @@ async def write_review(d: Deal, sst: SellerState, bst: BuyerState,
     d.review_reasoning = j.private_reasoning
 
 
+def _deadline_suffix(d: Deal, round_no: int) -> str:
+    """Contract arms only (d.by_round >= 0): make the drafted deadline and how much
+    room is left on it explicit, instead of leaving it to the agent to recall from a
+    negotiation that may have scrolled out of its visible history."""
+    if d.by_round < 0:
+        return ""
+    left = d.by_round - round_no
+    if left < 0:
+        return f", OVERDUE — contract due by round {d.by_round}"
+    if left == 0:
+        return f", contract due by round {d.by_round} (THIS round)"
+    return f", contract due by round {d.by_round} ({left} round(s) left)"
+
+
 def seller_status_view(sst: SellerState, deals: list[Deal],
-                       buyers: dict[str, BuyerState]) -> str:
+                       buyers: dict[str, BuyerState], round_no: int) -> str:
     """The seller's own bookkept state, made explicit every turn instead of left for it
     to reconstruct: how many deals it has closed vs. delivered, and what that backlog
     means against its own known average supply rate — the arithmetic behind
@@ -201,6 +215,7 @@ def seller_status_view(sst: SellerState, deals: list[Deal],
         lines = "\n".join(
             f"  {d.buyer} {buyers[d.buyer].agent.name} — declared in round {d.closed_round}, "
             f"{d.quantity - d.delivered_qty}/{d.quantity} unit(s) still owed"
+            f"{_deadline_suffix(d, round_no)}"
             for d in sorted(open_deals, key=lambda d: d.closed_round))
     else:
         lines = "  None — you owe nobody."
@@ -293,7 +308,8 @@ def progress_view(b: BuyerState, deals: list[Deal], round_no: int, s: Scenario) 
     live = [d for d in deals if d.buyer == b.id and d.outstanding]
     n_open = b.deals_closed - b.deals_delivered
     waiting = (", ".join(
-        f"{d.seller} (since round {d.closed_round}, {d.quantity - d.delivered_qty} unit(s) owed)"
+        f"{d.seller} (since round {d.closed_round}, {d.quantity - d.delivered_qty} unit(s) owed"
+        f"{_deadline_suffix(d, round_no)})"
         for d in live) if live else "nobody")
     return (f"You own {b.owned} good(s). Deals closed so far: {b.deals_closed}. "
             f"Delivered: {b.deals_delivered}. Still open (waiting on): {n_open}. "
@@ -325,7 +341,7 @@ async def negotiate(sst: SellerState, bst: BuyerState, *, scenario, rounds, deal
     async def seller_msg(opening):
         return await sst.agent.turn(
             rules=seller_rules, board=seller_board,
-            status=seller_status_view(sst, deals, buyers),
+            status=seller_status_view(sst, deals, buyers, round_no),
             history=seller_history(sst.id, rounds, deals, names),
             buyer_name=bst.agent.name, buyer_id=bst.id, conv=conv, opening=opening,
             max_messages=scenario.max_messages, contract_mode=cm,
@@ -623,7 +639,7 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                             seller_rows(sellers, deals if scenario.enable_reviews else None)),
                         goods=s.stock,
                         history=seller_history(s.id, rounds + [rec], deals, names),
-                        options=seller_status_view(s, deals, buyers), n_deals=len(mine))
+                        options=seller_status_view(s, deals, buyers, round_no), n_deals=len(mine))
                     # The seller names BUYERS to honor; each mention fills that buyer's
                     # oldest still-open deal (naming a buyer twice fills two of its deals).
                     by_buyer: dict[str, list[Deal]] = {}
@@ -695,7 +711,7 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                         for d in sorted(mine, key=lambda d: d.closed_round))
                     prior = sst.agent.strategy
                     result = await sst.agent.update_strategy(
-                        status=seller_status_view(sst, deals, buyers), reviews_text=reviews_text)
+                        status=seller_status_view(sst, deals, buyers, round_no), reviews_text=reviews_text)
                     strategy_log.append(StrategyEvent(
                         round=round_no, seller=sid, reviews_seen=len(mine),
                         prior_strategy=prior, private_reasoning=result.private_reasoning,
