@@ -24,6 +24,12 @@ AGENTS: list[tuple[str, str, str]] = [
     ("A8", "Agent Hotel", ""),
     ("A9", "Agent India", ""),
     ("A10", "Agent Juliet", ""),
+    ("A11", "Agent Kilo", ""),
+    ("A12", "Agent Lima", ""),
+    ("A13", "Agent Mike", ""),
+    ("A14", "Agent November", ""),
+    ("A15", "Agent Oscar", ""),
+    ("A16", "Agent Papa", ""),
 ]
 
 
