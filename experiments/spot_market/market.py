@@ -143,33 +143,33 @@ def resolve_seller_id(raw: str, sellers: dict[str, SellerState]) -> str | None:
 async def negotiate_attempt(seller: SellerState, buyer: BuyerState, *, seller_board: str,
                             buyer_board: str, seller_status: str, buyer_status: str,
                             max_messages: int, approach_reasoning: str) -> Attempt:
+    """Alternates seller/buyer one message at a time (seller first, since it's being
+    approached), checking for mutual declare after EVERY single message -- not just
+    after a full exchange -- so a declare-and-stop on either side still gives the OTHER
+    side its very next turn to reciprocate before anything ends. Mirrors promises'
+    negotiate() loop exactly, including only honoring continue_conversation=False from
+    the second message onward (never on the very first, which is just an opening)."""
     att = Attempt(seller=seller.id, approach_reasoning=approach_reasoning)
     seller_declared = buyer_declared = False
-    opening = True
-    while len(att.messages) < max_messages:
-        s_msg = await seller.agent.turn(
-            board=seller_board, status=seller_status, buyer_name=buyer.agent.name,
-            buyer_id=buyer.id, messages=att.messages, opening=opening,
-            max_messages=max_messages)
-        att.messages.append(s_msg)
-        seller_declared = seller_declared or s_msg.declare_deal
+    for i in range(max_messages):
+        opening = i == 0
+        if i % 2 == 0:
+            msg = await seller.agent.turn(
+                board=seller_board, status=seller_status, buyer_name=buyer.agent.name,
+                buyer_id=buyer.id, messages=att.messages, opening=opening,
+                max_messages=max_messages)
+            seller_declared = seller_declared or msg.declare_deal
+        else:
+            msg = await buyer.agent.turn(
+                board=buyer_board, status=buyer_status, seller_name=seller.agent.name,
+                seller_id=seller.id, messages=att.messages, opening=opening,
+                max_messages=max_messages)
+            buyer_declared = buyer_declared or msg.declare_deal
+        att.messages.append(msg)
         if seller_declared and buyer_declared:
             att.closed = True
             break
-        if not s_msg.continue_conversation or len(att.messages) >= max_messages:
-            break
-
-        b_msg = await buyer.agent.turn(
-            board=buyer_board, status=buyer_status, seller_name=seller.agent.name,
-            seller_id=seller.id, messages=att.messages, opening=opening,
-            max_messages=max_messages)
-        att.messages.append(b_msg)
-        buyer_declared = buyer_declared or b_msg.declare_deal
-        opening = False
-        if seller_declared and buyer_declared:
-            att.closed = True
-            break
-        if not b_msg.continue_conversation:
+        if i >= 1 and not msg.continue_conversation:
             break
     return att
 

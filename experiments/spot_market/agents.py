@@ -23,6 +23,19 @@ it agreed with FIRST that cycle. Saying yes to someone later still counts toward
 own tally of deals closed, whether or not it can actually deliver.
 """
 
+DECLARE_SELLER = """\
+Set declare_deal to TRUE the moment you and this buyer have reached an agreement you are \
+ready to stand behind for this cycle -- that is the act that closes the deal, not anything \
+said in your message. Talking about terms is not enough by itself. A deal forms only when \
+BOTH of you have declare_deal=true (possibly on different messages), so someone has to go \
+first; set it false while you are still working out what to offer."""
+
+DECLARE_BUYER = """\
+Set declare_deal to TRUE the moment you are convinced enough to commit to this seller for \
+this cycle -- that is the act that closes the deal, not anything said in your message. A \
+deal forms only when BOTH of you have declare_deal=true (possibly on different messages), \
+so someone has to go first; set it false while you still need something from them."""
+
 
 def _supply_line(p: float) -> str:
     return (
@@ -77,6 +90,8 @@ you can over the whole run; a seller who closes nothing is finished.
 
 # Private conversation with {buyer_name}
 {who} Nobody else will ever hear this. {budget}
+
+{DECLARE_SELLER}
 {history}
 
 It is your turn. Return private_reasoning (never seen by them), updated_note, message, \
@@ -145,6 +160,8 @@ Return private_reasoning and seller (its bare id, e.g. {available[0]})."""
 
 # Private conversation with {seller_name}
 {who} Nobody else will ever hear this. {budget}
+
+{DECLARE_BUYER}
 {history}
 
 It is your turn. Return private_reasoning (never seen by them), updated_note, message, \
