@@ -153,13 +153,11 @@ async def negotiate_attempt(seller: SellerState, buyer: BuyerState, *, seller_bo
                             buyer_board: str, seller_status: str, buyer_status: str,
                             max_messages: int, approach_reasoning: str) -> Attempt:
     """Alternates seller/buyer one message at a time (seller first, since it's being
-    approached), checking for mutual declare after EVERY single message -- not just
-    after a full exchange -- so a declare-and-stop on either side still gives the OTHER
-    side its very next turn to reciprocate before anything ends. Mirrors promises'
-    negotiate() loop exactly, including only honoring continue_conversation=False from
-    the second message onward (never on the very first, which is just an opening)."""
+    approached). Declaring is a BUYER-ONLY action -- the seller only ever persuades, it
+    has no accept/refuse of its own -- so the attempt closes the instant the buyer
+    declares, on ANY of its turns, with no need to wait for the seller to reciprocate
+    (there is nothing for it to reciprocate)."""
     att = Attempt(seller=seller.id, approach_reasoning=approach_reasoning)
-    seller_declared = buyer_declared = False
     for i in range(max_messages):
         opening = i == 0
         if i % 2 == 0:
@@ -167,17 +165,16 @@ async def negotiate_attempt(seller: SellerState, buyer: BuyerState, *, seller_bo
                 board=seller_board, status=seller_status, buyer_name=buyer.agent.name,
                 buyer_id=buyer.id, messages=att.messages, opening=opening,
                 max_messages=max_messages)
-            seller_declared = seller_declared or msg.declare_deal
+            att.messages.append(msg)
         else:
             msg = await buyer.agent.turn(
                 board=buyer_board, status=buyer_status, seller_name=seller.agent.name,
                 seller_id=seller.id, messages=att.messages, opening=opening,
                 max_messages=max_messages)
-            buyer_declared = buyer_declared or msg.declare_deal
-        att.messages.append(msg)
-        if seller_declared and buyer_declared:
-            att.closed = True
-            break
+            att.messages.append(msg)
+            if msg.declare_deal:
+                att.closed = True
+                break
         if i >= 1 and not msg.continue_conversation:
             break
     return att
