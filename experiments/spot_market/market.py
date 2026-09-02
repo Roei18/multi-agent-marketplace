@@ -100,10 +100,19 @@ def buyer_rows(buyers: list[BuyerState]) -> list[str]:
     return [f"  {b.id} {b.agent.name:22s} owns {b.owned}" for b in ranked]
 
 
-def public_board(seller_lines: list[str], buyer_lines: list[str] | None = None) -> str:
-    out = ["# Public board -- sellers' contest (deals closed)"] + seller_lines
+def public_board(*, seller_lines: list[str] | None = None,
+                 buyer_lines: list[str] | None = None) -> str:
+    """Each side sees only its OWN contest. A seller's closed-count is cheap talk here
+    (it can close with no ability to deliver) -- not a signal a buyer should be shown
+    or could trust, so buyers never see the seller board at all, and sellers never see
+    who owns what (not their business, and would only bias them)."""
+    out: list[str] = []
+    if seller_lines is not None:
+        out += ["# Public board -- sellers' contest (deals closed)"] + seller_lines
     if buyer_lines is not None:
-        out += ["", "# Public board -- buyers' contest (goods owned)"] + buyer_lines
+        if out:
+            out.append("")
+        out += ["# Public board -- buyers' contest (goods owned)"] + buyer_lines
     return "\n".join(out)
 
 
@@ -227,9 +236,8 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
             tried: list[str] = []
 
             for _ in range(scenario.max_attempts_per_turn):
-                seller_board = public_board(seller_rows(list(sellers.values())))
-                buyer_board = public_board(seller_rows(list(sellers.values())),
-                                           buyer_rows(list(buyers.values())))
+                seller_board = public_board(seller_lines=seller_rows(list(sellers.values())))
+                buyer_board = public_board(buyer_lines=buyer_rows(list(buyers.values())))
                 buyer_status = buyer_status_view(b)
                 available = [s for s in seller_order if s not in tried]
                 if not available:
