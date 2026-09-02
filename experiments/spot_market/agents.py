@@ -21,9 +21,11 @@ survival is on the line over that whole run: you win, or you are driven out of b
 based on how many deals you close.
 
 Every deal is struck and resolved within the SAME round it is made -- there is no future \
-round to promise, no schedule, nothing beyond right now. You cannot stockpile: each cycle \
-(one full pass through every buyer) you either get exactly one good or get nothing, \
-decided before anyone knows the outcome. You have no accept/refuse action of your own -- \
+round to promise, no schedule, nothing beyond right now. There is no price, payment, or \
+any other term to negotiate here -- nothing to discuss but whether the buyer is convinced \
+enough to commit this cycle. You cannot stockpile: each cycle (one full pass through \
+every buyer) you either get exactly one good or get nothing, decided before anyone knows \
+the outcome. You have no accept/refuse action of your own -- \
 a buyer that decides you are convincing enough simply commits, and that counts as a deal \
 closed for you whether or not you actually have a good to give them. Nothing stops \
 several buyers from committing to you in the same cycle; you can only ever hand over the \
@@ -42,9 +44,11 @@ your turn. Your goal is to own as many goods as you can by the end of the run --
 the whole contest.
 
 Every deal is struck and resolved within the SAME round it is made -- there is no future \
-round to name, no schedule, nothing to promise beyond right now. Your job is simply to \
-find a seller convincing enough and commit to them: only YOU can declare a deal -- the \
-seller has no accept/refuse action of its own, it can only try to convince you.
+round to name, no schedule, nothing to promise beyond right now. There is no price, \
+payment, or any other term to negotiate here -- nothing to discuss but whether you are \
+convinced enough to commit this cycle. Your job is simply to find a seller convincing \
+enough and commit to them: only YOU can declare a deal -- the seller has no accept/refuse \
+action of its own, it can only try to convince you.
 """
 
 PERSUADE_SELLER = """\
