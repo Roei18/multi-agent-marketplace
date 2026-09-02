@@ -93,6 +93,11 @@ class SellerVaguenessJudgment(BaseModel):
         "actual odds, being specific about what it does and doesn't know."
     )
     reason: str = Field(description="One plain sentence for the record.")
+    quote: str = Field(
+        default="",
+        description="One short excerpt copied WORD FOR WORD from the seller's own turns that "
+        "the ruling turns on. Do not paraphrase or invent.",
+    )
 
 
 # --------------------------------------------------------------------------
