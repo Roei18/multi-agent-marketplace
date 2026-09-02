@@ -197,7 +197,8 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
     sellers: dict[str, SellerState] = {}
     for (sid, name, blurb), p in zip(SELLERS[:scenario.n_sellers], scenario.arrival_probs,
                                      strict=True):
-        a = SellerAgent(sid, name, blurb, p)
+        a = SellerAgent(sid, name, blurb, p, n_sellers=scenario.n_sellers,
+                       n_buyers=scenario.n_buyers, n_rounds=scenario.n_rounds)
         if seller_model:
             a.model = seller_model
         if seller_reasoning_effort:
@@ -206,7 +207,8 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
 
     buyers: dict[str, BuyerState] = {}
     for bid, name in BUYERS[:scenario.n_buyers]:
-        a = BuyerAgent(bid, name)
+        a = BuyerAgent(bid, name, n_sellers=scenario.n_sellers, n_buyers=scenario.n_buyers,
+                      n_rounds=scenario.n_rounds)
         if buyer_model:
             a.model = buyer_model
         if buyer_reasoning_effort:
