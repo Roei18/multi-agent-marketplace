@@ -190,6 +190,12 @@ class RunResult(BaseModel):
     n_buyers: int
     k_cycles: int
     n_rounds: int
+    max_attempts_per_turn: int = 3
+    max_messages: int = 8
+    seller_model: str | None = None      # None = environment default (LLM_MODEL)
+    buyer_model: str | None = None
+    seller_reasoning_effort: str | None = None   # None = environment default (LLM_REASONING_EFFORT)
+    buyer_reasoning_effort: str | None = None
     protocol: str = ("round-robin, one buyer per round; every seller draws a fresh "
                      "single-good Bernoulli(p_s) every round, no accumulation; a deal is "
                      "for this round's good only; verdict is pure arithmetic, no LLM judge")
