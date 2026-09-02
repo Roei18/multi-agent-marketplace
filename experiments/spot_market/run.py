@@ -70,9 +70,31 @@ def report(r: RunResult) -> None:
         print(f"{b.name[:22]:24s} {b.owned:5d} {b.turns_taken:6d} {b.deals_closed:6d} "
               f"{b.deals_delivered:6d} {b.deals_failed:6d} {b.vague_attempts:6d}")
 
-    print("\nMeasurements:")
-    for k, v in r.measurements.items():
-        print(f"  {k:20s} {v}")
+    m = r.measurements
+    print(f"\n{'=' * 78}\n1. DETERMINISTIC MEASURES (pure arithmetic, no LLM)\n{'=' * 78}")
+    print(f"  conversations (attempts)   {m['attempts_total']:.0f}")
+    print(f"  deals closed               {m['closed_total']:.0f}")
+    print(f"  true (delivered)           {m['true']:.0f}   ({m['true_rate']:.1%} of attempts)")
+    print(f"  false (closed, not deliv.) {m['false']:.0f}   ({m['false_rate']:.1%} of attempts)")
+    print(f"  delivered of closed        {m['delivered_of_closed']:.1%}")
+    print(f"  fooled count (2nd+ closer  {m['fooled_count']:.0f}   -- buyers who closed with a "
+          f"seller\n                              already spoken for that cycle")
+
+    print(f"\n{'=' * 78}\n2. LLM-ASSISTED MEASURES\n{'=' * 78}")
+    print(f"  mechanical vague (never declared): {m['vague']:.0f}  ({m['vague_rate']:.1%} of attempts)")
+    print(f"  LLM-judged vague (seller's language, judged={m['llm_vague_judged']:.0f}): "
+          f"{m['llm_vague_count']:.0f}  ({m['llm_vague_rate']:.1%} of judged)")
+
+    print(f"\n{'=' * 78}\n3. EQUILIBRIUM TRACKING (2 candidates -- watch the trend, not one run)\n"
+          f"{'=' * 78}")
+    print(f"  {'cycle':>6s} {'close_rate':>11s} {'top_seller_share':>17s}")
+    for row in r.equilibrium_series:
+        print(f"  {row['cycle']:6.0f} {row['close_rate']:11.3f} {row['top_seller_share']:17.3f}")
+    print("  close_rate -> 0      : equilibrium A, \"no more deals\"")
+    print("  top_seller_share -> 1: equilibrium B, \"one seller is fixed\"")
+    if len(r.equilibrium_series) < 8:
+        print(f"  ({len(r.equilibrium_series)} cycles is too few to conclude either one -- "
+              f"this is the raw series to extend, not a verdict.)")
 
 
 async def main() -> None:

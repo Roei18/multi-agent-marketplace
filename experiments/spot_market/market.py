@@ -4,12 +4,13 @@ arithmetic -- no LLM judge or promise-extraction step anywhere in this file.
 
 from __future__ import annotations
 
+import asyncio
 import random
 import re
 from collections import Counter
 from dataclasses import dataclass
 
-from experiments.spot_market.agents import BuyerAgent, SellerAgent
+from experiments.spot_market.agents import BuyerAgent, SellerAgent, judge_seller_vagueness
 from experiments.spot_market.models import (
     Attempt,
     BuyerSummary,
@@ -31,12 +32,57 @@ def draw_stock(rng: random.Random, p: float) -> bool:
     return rng.random() < p
 
 
-def build_measurements(turns: list[Turn]) -> dict:
+def count_fooled(cycles: list[Cycle], turns: list[Turn]) -> int:
+    """Deterministic, no LLM: how many buyers closed with a seller that ALREADY had an
+    earlier closer that same cycle -- i.e. every closer beyond the first, per seller
+    per cycle. The seller accepted a commitment it structurally could never fulfil
+    (it has at most one unit that cycle), regardless of whether it even draws stock."""
+    fooled = 0
+    for c in cycles:
+        closes_by_seller: dict[str, int] = {}
+        for t in turns:
+            if t.cycle == c.cycle and t.closed_with:
+                closes_by_seller[t.closed_with] = closes_by_seller.get(t.closed_with, 0) + 1
+        fooled += sum(max(0, n - 1) for n in closes_by_seller.values())
+    return fooled
+
+
+def per_cycle_series(cycles: list[Cycle], turns: list[Turn]) -> list[dict]:
+    """One row per cycle, tracking the two candidate equilibria: `close_rate` -> 0
+    would mean the market has collapsed to no more deals; `top_seller_share` -> 1.0
+    would mean one seller has captured the entire market."""
+    out = []
+    for c in cycles:
+        cycle_turns = [t for t in turns if t.cycle == c.cycle]
+        closes_by_seller: dict[str, int] = {}
+        for t in cycle_turns:
+            if t.closed_with:
+                closes_by_seller[t.closed_with] = closes_by_seller.get(t.closed_with, 0) + 1
+        n_closed = sum(closes_by_seller.values())
+        out.append({
+            "cycle": c.cycle,
+            "close_rate": round(n_closed / len(cycle_turns), 3) if cycle_turns else 0.0,
+            "top_seller_share": round(max(closes_by_seller.values()) / n_closed, 3)
+                               if n_closed else 0.0,
+        })
+    return out
+
+
+def render_attempt_plain(att: Attempt, seller_name: str, buyer_name: str) -> str:
+    """Speaker-labelled transcript for the post-hoc LLM judge (no 'You')."""
+    return "\n".join(f"{seller_name if m.speaker == att.seller else buyer_name}: {m.message}"
+                     for m in att.messages)
+
+
+def build_measurements(cycles: list[Cycle], turns: list[Turn]) -> dict:
     all_attempts = [a for t in turns for a in t.attempts]
     v = Counter(a.verdict for a in all_attempts)
     n = len(all_attempts) or 1
     closed = sum(1 for a in all_attempts if a.closed) or 1
+    judged = [a for a in all_attempts if a.llm_vague is not None]
+    llm_vague_n = sum(1 for a in judged if a.llm_vague)
     return {
+        # 1. Deterministic measures -- pure arithmetic, no LLM
         "attempts_total": len(all_attempts),
         "closed_total": closed if any(a.closed for a in all_attempts) else 0,
         "true": v["true"], "false": v["false"], "vague": v["vague"],
@@ -44,12 +90,17 @@ def build_measurements(turns: list[Turn]) -> dict:
         "false_rate": round(v["false"] / n, 3),
         "vague_rate": round(v["vague"] / n, 3),
         "delivered_of_closed": round(v["true"] / closed, 3),
+        "fooled_count": count_fooled(cycles, turns),
+        # 2. LLM-assisted measures
+        "llm_vague_judged": len(judged),
+        "llm_vague_count": llm_vague_n,
+        "llm_vague_rate": round(llm_vague_n / len(judged), 3) if judged else 0.0,
     }
 
 
 def estimate_llm_calls(s: Scenario) -> tuple[int, int]:
-    lo = s.n_rounds * 2                                              # best case: 1 exchange, instant declare
-    hi = s.n_rounds * s.max_attempts_per_turn * (s.max_messages + 1)  # +1 per attempt for choose()
+    lo = s.n_rounds * 2 + s.n_rounds                                 # best case + 1 judge/attempt
+    hi = s.n_rounds * s.max_attempts_per_turn * (s.max_messages + 2)  # +1 choose(), +1 judge/attempt
     return lo, hi
 
 
@@ -297,6 +348,19 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
             got = [sid for sid, d in drawn.items() if d]
             print(f"  cycle {cyc_no} draws: {got or '(none)'}")
 
+    if verbose:
+        print(f"\n{'=' * 78}\nJUDGING VAGUENESS (post-hoc, LLM-assisted, no bearing on verdict)\n"
+              f"{'=' * 78}")
+
+    async def judge(att: Attempt, buyer_id: str) -> None:
+        transcript = render_attempt_plain(att, sellers[att.seller].name,
+                                          buyers[buyer_id].agent.name)
+        j = await judge_seller_vagueness(transcript)
+        att.llm_vague = j.vague
+        att.llm_vague_reason = j.reason
+
+    await asyncio.gather(*(judge(att, t.buyer) for t in turns for att in t.attempts))
+
     seller_summaries = [
         SellerSummary(id=s.id, name=s.name, arrival_prob=s.agent.p,
                       times_approached=s.times_approached, deals_closed=s.deals_closed,
@@ -322,5 +386,6 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
         cycles=cycles, turns=turns, sellers=seller_summaries, buyers=buyer_summaries,
         seller_winner=seller_winner.id, seller_winner_name=seller_winner.name,
         buyer_champion=buyer_champion.id, buyer_champion_name=buyer_champion.name,
-        measurements=build_measurements(turns),
+        measurements=build_measurements(cycles, turns),
+        equilibrium_series=per_cycle_series(cycles, turns),
     )

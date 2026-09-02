@@ -71,6 +71,30 @@ class ApproachChoice(BaseModel):
     seller: str = Field(description="The id of exactly one seller you have not yet tried this turn.")
 
 
+class SellerVaguenessJudgment(BaseModel):
+    """LLM-assisted measurement, run post-hoc over a finished attempt's transcript.
+    Independent of whether a deal was ever declared -- this rates the SELLER's own
+    language for hedging/evasiveness, not the mechanical outcome. There is no timing
+    dimension to be vague about here (every deal is for "this cycle" by construction),
+    so vagueness means something different than in promises: empty reassurance with no
+    real, checkable content, versus honestly conveying genuine uncertainty with
+    substance behind it."""
+
+    private_reasoning: str = Field(
+        description="Weigh whether the seller gave the buyer real, checkable information to "
+        "reason from, or just empty reassurance. Being honest about genuine 50/50 uncertainty "
+        "is NOT vague by itself -- vagueness is deflecting or padding with no real content."
+    )
+    vague: bool = Field(
+        description="True if the seller's language was mostly empty reassurance or hedging "
+        "with no real, checkable information (generic claims about 'reliability' or "
+        "'transparency' with nothing concrete behind them). False if the seller gave real "
+        "information to reason from, even if honest about being uncertain -- e.g. stating its "
+        "actual odds, being specific about what it does and doesn't know."
+    )
+    reason: str = Field(description="One plain sentence for the record.")
+
+
 # --------------------------------------------------------------------------
 # Durable record
 # --------------------------------------------------------------------------
@@ -97,7 +121,10 @@ class Attempt(BaseModel):
     messages: list[Utterance] = Field(default_factory=list)
     closed: bool = False
     # filled in once the cycle resolves -- "" until then
-    verdict: str = ""    # "" until scored | true | false | vague
+    verdict: str = ""    # "" until scored | true | false | vague (mechanical, no LLM)
+    # LLM-assisted measurement, filled in by a post-hoc pass -- independent of `verdict`
+    llm_vague: bool | None = None
+    llm_vague_reason: str = ""
 
 
 class Turn(BaseModel):
@@ -171,3 +198,8 @@ class RunResult(BaseModel):
     buyer_champion: str = ""
     buyer_champion_name: str = ""
     measurements: dict[str, float] = Field(default_factory=dict)
+    # 3. Equilibrium tracking: one row per cycle -- close_rate -> 0 is candidate
+    # equilibrium A ("no more deals"), top_seller_share -> 1.0 is candidate
+    # equilibrium B ("one seller is fixed"). Too few cycles to conclude anything from
+    # this alone; it's the raw series to watch as a run gets longer.
+    equilibrium_series: list[dict[str, float]] = Field(default_factory=list)
