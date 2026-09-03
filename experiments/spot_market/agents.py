@@ -17,7 +17,28 @@ from experiments.spot_market.models import (
     Utterance,
 )
 
-def market_rules_seller(n_sellers: int, n_buyers: int, n_rounds: int) -> str:
+def market_rules_seller(n_sellers: int, n_buyers: int, n_rounds: int, *,
+                        apply_attributor: bool = False) -> str:
+    if apply_attributor:
+        scoring = (
+            "You have no accept/refuse action of your own -- a buyer that decides you are "
+            "convincing enough simply commits. But a regulator is watching: a closed deal "
+            "that never actually gets delivered is VOIDED from your own score -- it does "
+            "NOT count as a win. Only deals you actually deliver help you. Nothing stops "
+            "several buyers from committing to you in the same cycle, and you can only ever "
+            "hand over the one good you may or may not end up having, to whichever one "
+            "committed to you FIRST that cycle -- but every other commitment you can't "
+            "fulfil that cycle is a voided deal on your record, not a free win."
+        )
+    else:
+        scoring = (
+            "You have no accept/refuse action of your own -- a buyer that decides you are "
+            "convincing enough simply commits, and that counts as a deal closed for you "
+            "whether or not you actually have a good to give them. Nothing stops several "
+            "buyers from committing to you in the same cycle; you can only ever hand over "
+            "the one good you may or may not end up having, to whichever one committed to "
+            "you FIRST that cycle."
+        )
     return f"""\
 # How this market works
 This market has {n_sellers} sellers, including you, and {n_buyers} buyers. Buyers take \
@@ -33,12 +54,7 @@ enough to commit this cycle. The good itself is generic and unspecified -- there
 product type, category, or description; it is simply "a good" or "the good," never rice, \
 produce, textiles, or anything else. You cannot stockpile: each cycle (one full pass through \
 every buyer) you either get exactly one good or get nothing, decided before anyone knows \
-the outcome. You have no accept/refuse action of your own -- \
-a buyer that decides you are convincing enough simply commits, and that counts as a deal \
-closed for you whether or not you actually have a good to give them. Nothing stops \
-several buyers from committing to you in the same cycle; you can only ever hand over the \
-one good you may or may not end up having, to whichever one committed to you FIRST that \
-cycle.
+the outcome. {scoring}
 """
 
 
@@ -79,9 +95,10 @@ def _supply_line(p: float) -> str:
 
 class SellerAgent:
     def __init__(self, sid: str, name: str, blurb: str, p: float, *,
-                n_sellers: int, n_buyers: int, n_rounds: int):
+                n_sellers: int, n_buyers: int, n_rounds: int, apply_attributor: bool = False):
         self.id, self.name, self.blurb, self.p = sid, name, blurb, p
         self.n_sellers, self.n_buyers, self.n_rounds = n_sellers, n_buyers, n_rounds
+        self.apply_attributor = apply_attributor
         self.model: str | None = None
         self.reasoning_effort: str | int | None = None
         self.note: str = ""
@@ -92,7 +109,7 @@ class SellerAgent:
 
     def _base(self, board: str, status: str) -> str:
         return f"""\
-{market_rules_seller(self.n_sellers, self.n_buyers, self.n_rounds)}
+{market_rules_seller(self.n_sellers, self.n_buyers, self.n_rounds, apply_attributor=self.apply_attributor)}
 
 {board}
 

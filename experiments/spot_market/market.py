@@ -261,7 +261,8 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
     for (sid, name, blurb), p in zip(SELLERS[:scenario.n_sellers], scenario.arrival_probs,
                                      strict=True):
         a = SellerAgent(sid, name, blurb, p, n_sellers=scenario.n_sellers,
-                       n_buyers=scenario.n_buyers, n_rounds=scenario.n_rounds)
+                       n_buyers=scenario.n_buyers, n_rounds=scenario.n_rounds,
+                       apply_attributor=scenario.apply_attributor)
         if seller_model:
             a.model = seller_model
         if seller_reasoning_effort:
