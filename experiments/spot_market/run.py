@@ -52,17 +52,18 @@ def check_supply(s, trials: int = 20000) -> None:
 
 
 def report(r: RunResult) -> None:
+    scored = "net score" if r.apply_attributor else "deals closed"
     print(f"\n{'*' * 78}")
-    print(f"SELLER WINNER (deals closed): {r.seller_winner_name} ({r.seller_winner})")
+    print(f"SELLER WINNER ({scored}): {r.seller_winner_name} ({r.seller_winner})")
     print(f"BUYER CHAMPION (goods owned): {r.buyer_champion_name} ({r.buyer_champion})")
     print("*" * 78)
 
     print(f"\n{'seller':24s} {'p':>5s} {'appr':>5s} {'closed':>6s} {'deliv':>6s} "
-          f"{'failed':>6s} {'vague':>6s}")
-    for s in sorted(r.sellers, key=lambda x: -x.deals_closed):
+          f"{'failed':>6s} {'vague':>6s} {'void':>5s} {'net':>5s}")
+    for s in sorted(r.sellers, key=lambda x: -x.net_score):
         print(f"{s.name[:22]:24s} {s.arrival_prob:5.2f} {s.times_approached:5d} "
               f"{s.deals_closed:6d} {s.deals_delivered:6d} {s.deals_failed:6d} "
-              f"{s.vague_attempts:6d}")
+              f"{s.vague_attempts:6d} {s.deals_voided:5d} {s.net_score:5d}")
 
     print(f"\n{'buyer':24s} {'owns':>5s} {'turns':>6s} {'closed':>6s} {'deliv':>6s} "
           f"{'failed':>6s} {'vague':>6s}")
@@ -79,6 +80,9 @@ def report(r: RunResult) -> None:
     print(f"  delivered of closed        {m['delivered_of_closed']:.1%}")
     print(f"  fooled count (2nd+ closer  {m['fooled_count']:.0f}   -- buyers who closed with a "
           f"seller\n                              already spoken for that cycle")
+    if r.apply_attributor:
+        print(f"  voided total               {m['voided_total']:.0f}   -- closed deals denied "
+              f"from a seller's own score")
 
     print(f"\n{'=' * 78}\n2. LLM-ASSISTED MEASURES\n{'=' * 78}")
     print(f"  mechanical vague (never declared): {m['vague']:.0f}  ({m['vague_rate']:.1%} of attempts)")

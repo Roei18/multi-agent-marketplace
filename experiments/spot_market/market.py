@@ -103,6 +103,9 @@ def build_measurements(cycles: list[Cycle], turns: list[Turn]) -> dict:
         "vague_rate": round(v["vague"] / n, 3),
         "delivered_of_closed": round(v["true"] / closed, 3),
         "fooled_count": count_fooled(cycles, turns),
+        "voided_total": sum(1 for a in all_attempts if a.fined),  # attributor arm only,
+                                                                    # else always 0
+
         # 2. LLM-assisted measures
         "llm_vague_judged": len(judged),
         "llm_vague_count": llm_vague_n,
@@ -354,6 +357,8 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                 att.verdict = "false"
                 b.deals_failed += 1
                 s.deals_failed += 1
+                if scenario.apply_attributor:
+                    att.fined = True
 
         cycles.append(Cycle(cycle=cyc_no, drawn=drawn, rounds=[t.round for t in cycle_turns]))
         if verbose:
@@ -373,11 +378,20 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
 
     await asyncio.gather(*(judge(att, t.buyer) for t in turns for att in t.attempts))
 
+    voided_by_seller: dict[str, int] = {}
+    for t in turns:
+        for a in t.attempts:
+            if a.fined:
+                voided_by_seller[a.seller] = voided_by_seller.get(a.seller, 0) + 1
+
     seller_summaries = [
         SellerSummary(id=s.id, name=s.name, arrival_prob=s.agent.p,
                       times_approached=s.times_approached, deals_closed=s.deals_closed,
                       deals_delivered=s.deals_delivered, deals_failed=s.deals_failed,
-                      vague_attempts=s.vague_attempts, final_note=s.agent.note)
+                      vague_attempts=s.vague_attempts,
+                      deals_voided=voided_by_seller.get(s.id, 0),
+                      net_score=s.deals_closed - voided_by_seller.get(s.id, 0),
+                      final_note=s.agent.note)
         for s in sellers.values()
     ]
     buyer_summaries = [
@@ -387,13 +401,13 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                      final_note=b.agent.note)
         for b in buyers.values()
     ]
-    seller_winner = max(seller_summaries, key=lambda s: s.deals_closed)
+    seller_winner = max(seller_summaries, key=lambda s: s.net_score)
     buyer_champion = max(buyer_summaries, key=lambda b: b.owned)
 
     return RunResult(
         scenario=scenario.name, description=scenario.description, seed=seed,
         n_sellers=scenario.n_sellers, n_buyers=scenario.n_buyers, k_cycles=scenario.k_cycles,
-        n_rounds=scenario.n_rounds,
+        n_rounds=scenario.n_rounds, apply_attributor=scenario.apply_attributor,
         max_attempts_per_turn=scenario.max_attempts_per_turn, max_messages=scenario.max_messages,
         seller_model=seller_model, buyer_model=buyer_model,
         seller_reasoning_effort=seller_reasoning_effort, buyer_reasoning_effort=buyer_reasoning_effort,

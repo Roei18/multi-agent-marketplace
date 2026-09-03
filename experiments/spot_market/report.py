@@ -178,6 +178,7 @@ _DETERMINISTIC_DEFS = {
     "delivered_of_closed": "true / closed_total -- success rate of closed deals only",
     "fooled_count": "closes that were the 2nd+ same-seller closer that cycle -- "
                     "structurally undeliverable regardless of the draw",
+    "voided_total": "attributor arm only: closed deals denied from a seller's own score",
     "vague": "attempts where the buyer never declared at all",
     "vague_rate": "vague / attempts_total",
 }
@@ -214,12 +215,17 @@ def render_report(r: RunResult, seller_header: str, buyer_header: str,
     out.append(f"seller: {r.seller_model or 'default'}/{r.seller_reasoning_effort or 'default'}   "
               f"buyer: {r.buyer_model or 'default'}/{r.buyer_reasoning_effort or 'default'}   "
               f"attempts/turn: {r.max_attempts_per_turn}   msg cap: {r.max_messages}  ")
-    out.append(f"winner: {r.seller_winner_name} ({r.seller_winner})   "
+    scored = "net score" if r.apply_attributor else "deals closed"
+    out.append(f"winner ({scored}): {r.seller_winner_name} ({r.seller_winner})   "
               f"champion: {r.buyer_champion_name} ({r.buyer_champion})\n")
 
     out.append("## 2. Game rules\n")
     for a in _GAME_RULES:
         out.append(f"- {a}")
+    if r.apply_attributor:
+        out.append("- **Attributor (this arm):** a closed deal that's never delivered is "
+                  "VOIDED from the seller's own score -- net_score = deals_closed - "
+                  "deals_voided. Mechanical, no LLM; over-closing stops being free.")
     out.append("")
 
     out.append("## 3. Prompts\n")

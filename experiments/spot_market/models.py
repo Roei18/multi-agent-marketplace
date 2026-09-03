@@ -127,6 +127,9 @@ class Attempt(BaseModel):
     closed: bool = False
     # filled in once the cycle resolves -- "" until then
     verdict: str = ""    # "" until scored | true | false | vague (mechanical, no LLM)
+    # attributor arm only: True iff this closed deal's verdict came back false --
+    # voided from the seller's own score (see SellerSummary.net_score)
+    fined: bool = False
     # LLM-assisted measurement, filled in by a post-hoc pass -- independent of `verdict`
     llm_vague: bool | None = None
     llm_vague_reason: str = ""
@@ -167,6 +170,9 @@ class SellerSummary(BaseModel):
     deals_delivered: int = 0    # of those, how many the seller actually had stock for
     deals_failed: int = 0       # closed but seller's draw came up empty
     vague_attempts: int = 0     # negotiated but never reached a mutual declare
+    deals_voided: int = 0       # attributor arm only: false closes denied from the score
+    net_score: int = 0          # deals_closed - deals_voided (== deals_closed outside
+                                # the attributor arm, since nothing is ever voided there)
     final_note: str = ""
 
 
@@ -190,6 +196,7 @@ class RunResult(BaseModel):
     n_buyers: int
     k_cycles: int
     n_rounds: int
+    apply_attributor: bool = False
     max_attempts_per_turn: int = 3
     max_messages: int = 8
     seller_model: str | None = None      # None = environment default (LLM_MODEL)
