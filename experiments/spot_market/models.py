@@ -197,6 +197,7 @@ class RunResult(BaseModel):
     k_cycles: int
     n_rounds: int
     apply_attributor: bool = False
+    apply_reputation: bool = False
     max_attempts_per_turn: int = 3
     max_messages: int = 8
     seller_model: str | None = None      # None = environment default (LLM_MODEL)

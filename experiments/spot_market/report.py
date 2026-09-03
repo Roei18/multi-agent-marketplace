@@ -39,6 +39,7 @@ from experiments.spot_market.market import (
     buyer_rows,
     buyer_status_view,
     public_board,
+    reputation_rows,
     seller_rows,
     seller_status_view,
 )
@@ -119,7 +120,8 @@ async def capture_example_prompts(r: RunResult) -> tuple[str, str, list[tuple[st
         }
         buyers = {
             b.id: BuyerState(BuyerAgent(
-                b.id, b.name, n_sellers=r.n_sellers, n_buyers=r.n_buyers, n_rounds=r.n_rounds))
+                b.id, b.name, n_sellers=r.n_sellers, n_buyers=r.n_buyers, n_rounds=r.n_rounds,
+                apply_reputation=r.apply_reputation))
             for b in r.buyers
         }
         for s in sellers.values():
@@ -131,8 +133,11 @@ async def capture_example_prompts(r: RunResult) -> tuple[str, str, list[tuple[st
 
         s1 = sellers[r.sellers[0].id]
         b1 = buyers[r.buyers[0].id]
-        seller_board = public_board(seller_lines=seller_rows(list(sellers.values())))
-        buyer_board = public_board(buyer_lines=buyer_rows(list(buyers.values())))
+        reputation_lines = reputation_rows(list(sellers.values())) if r.apply_reputation else None
+        seller_board = public_board(seller_lines=seller_rows(list(sellers.values())),
+                                    reputation_lines=reputation_lines)
+        buyer_board = public_board(buyer_lines=buyer_rows(list(buyers.values())),
+                                   reputation_lines=reputation_lines)
         seller_status = seller_status_view(s1)
         buyer_status = buyer_status_view(b1)
 
@@ -227,6 +232,10 @@ def render_report(r: RunResult, seller_header: str, buyer_header: str,
         out.append("- **Attributor (this arm):** a closed deal that's never delivered is "
                   "VOIDED from the seller's own score -- net_score = deals_closed - "
                   "deals_voided. Mechanical, no LLM; over-closing stops being free.")
+    if r.apply_reputation:
+        out.append("- **Reputation (this arm):** each seller's live closed-but-undelivered "
+                  "count is ALSO posted on the public board, visible to buyers -- not just "
+                  "voided internally. Buyers are told to weigh it before choosing a seller.")
     out.append("")
 
     out.append("## 3. Prompts\n")

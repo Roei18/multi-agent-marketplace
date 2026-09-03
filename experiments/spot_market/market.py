@@ -166,15 +166,29 @@ def buyer_rows(buyers: list[BuyerState]) -> list[str]:
     return [f"  {b.id} {b.agent.name:22s} owns {b.owned}" for b in ranked]
 
 
+def reputation_rows(sellers: list[SellerState]) -> list[str]:
+    """Each seller's live count of closed-but-undelivered deals -- unlike deals_closed,
+    this is NOT cheap talk (a seller can't inflate or hide it), so it's the one seller
+    figure that's safe to also show buyers, in the reputation scenario."""
+    return [f"  {s.id} {s.name:22s} {s.deals_failed} closed-but-undelivered" for s in sellers]
+
+
 def public_board(*, seller_lines: list[str] | None = None,
-                 buyer_lines: list[str] | None = None) -> str:
-    """Each side sees only its OWN contest. A seller's closed-count is cheap talk here
-    (it can close with no ability to deliver) -- not a signal a buyer should be shown
-    or could trust, so buyers never see the seller board at all, and sellers never see
-    who owns what (not their business, and would only bias them)."""
+                 buyer_lines: list[str] | None = None,
+                 reputation_lines: list[str] | None = None) -> str:
+    """Each side sees only its OWN contest (deals closed vs. goods owned) -- a seller's
+    closed-count is cheap talk (it can close with no ability to deliver), not a signal a
+    buyer should be shown or could trust, so buyers never see the seller board itself, and
+    sellers never see who owns what (not their business, and would only bias them).
+    `reputation_lines` is the one exception -- in the reputation scenario it's shown on
+    BOTH boards, since it's mechanical and not something a seller can talk its way around."""
     out: list[str] = []
     if seller_lines is not None:
         out += ["# Public board -- sellers' contest (deals closed)"] + seller_lines
+    if reputation_lines is not None:
+        if out:
+            out.append("")
+        out += ["# Public board -- seller reputation (closed but never delivered)"] + reputation_lines
     if buyer_lines is not None:
         if out:
             out.append("")
@@ -262,7 +276,8 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                                      strict=True):
         a = SellerAgent(sid, name, blurb, p, n_sellers=scenario.n_sellers,
                        n_buyers=scenario.n_buyers, n_rounds=scenario.n_rounds,
-                       apply_attributor=scenario.apply_attributor)
+                       apply_attributor=scenario.apply_attributor,
+                       apply_reputation=scenario.apply_reputation)
         if seller_model:
             a.model = seller_model
         if seller_reasoning_effort:
@@ -272,7 +287,7 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
     buyers: dict[str, BuyerState] = {}
     for bid, name in BUYERS[:scenario.n_buyers]:
         a = BuyerAgent(bid, name, n_sellers=scenario.n_sellers, n_buyers=scenario.n_buyers,
-                      n_rounds=scenario.n_rounds)
+                      n_rounds=scenario.n_rounds, apply_reputation=scenario.apply_reputation)
         if buyer_model:
             a.model = buyer_model
         if buyer_reasoning_effort:
@@ -302,8 +317,12 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
             tried: list[str] = []
 
             for _ in range(scenario.max_attempts_per_turn):
-                seller_board = public_board(seller_lines=seller_rows(list(sellers.values())))
-                buyer_board = public_board(buyer_lines=buyer_rows(list(buyers.values())))
+                reputation_lines = (reputation_rows(list(sellers.values()))
+                                    if scenario.apply_reputation else None)
+                seller_board = public_board(seller_lines=seller_rows(list(sellers.values())),
+                                           reputation_lines=reputation_lines)
+                buyer_board = public_board(buyer_lines=buyer_rows(list(buyers.values())),
+                                          reputation_lines=reputation_lines)
                 buyer_status = buyer_status_view(b)
                 available = [s for s in seller_order if s not in tried]
                 if not available:
@@ -409,6 +428,7 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
         scenario=scenario.name, description=scenario.description, seed=seed,
         n_sellers=scenario.n_sellers, n_buyers=scenario.n_buyers, k_cycles=scenario.k_cycles,
         n_rounds=scenario.n_rounds, apply_attributor=scenario.apply_attributor,
+        apply_reputation=scenario.apply_reputation,
         max_attempts_per_turn=scenario.max_attempts_per_turn, max_messages=scenario.max_messages,
         seller_model=seller_model, buyer_model=buyer_model,
         seller_reasoning_effort=seller_reasoning_effort, buyer_reasoning_effort=buyer_reasoning_effort,

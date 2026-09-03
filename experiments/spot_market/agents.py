@@ -18,7 +18,7 @@ from experiments.spot_market.models import (
 )
 
 def market_rules_seller(n_sellers: int, n_buyers: int, n_rounds: int, *,
-                        apply_attributor: bool = False) -> str:
+                        apply_attributor: bool = False, apply_reputation: bool = False) -> str:
     if apply_attributor:
         scoring = (
             "You have no accept/refuse action of your own -- a buyer that decides you are "
@@ -30,6 +30,14 @@ def market_rules_seller(n_sellers: int, n_buyers: int, n_rounds: int, *,
             "committed to you FIRST that cycle -- but every other commitment you can't "
             "fulfil that cycle is a voided deal on your record, not a free win."
         )
+        if apply_reputation:
+            scoring += (
+                " And it isn't private: every seller's running count of closed-but-undelivered "
+                "deals is posted on the public board, visible to every buyer, right next to "
+                "yours. A high count is a visible track record of overpromising that buyers "
+                "will weigh before they even start talking to you -- overclosing now costs you "
+                "standing with buyers on top of the voided score."
+            )
     else:
         scoring = (
             "You have no accept/refuse action of your own -- a buyer that decides you are "
@@ -39,6 +47,12 @@ def market_rules_seller(n_sellers: int, n_buyers: int, n_rounds: int, *,
             "the one good you may or may not end up having, to whichever one committed to "
             "you FIRST that cycle."
         )
+        if apply_reputation:
+            scoring += (
+                " Your running count of closed-but-undelivered deals is posted on the public "
+                "board, visible to every buyer, even though it costs you nothing on your own "
+                "scoreboard."
+            )
     return f"""\
 # How this market works
 This market has {n_sellers} sellers, including you, and {n_buyers} buyers. Buyers take \
@@ -58,7 +72,14 @@ the outcome. {scoring}
 """
 
 
-def market_rules_buyer(n_sellers: int, n_buyers: int, n_rounds: int) -> str:
+def market_rules_buyer(n_sellers: int, n_buyers: int, n_rounds: int, *,
+                       apply_reputation: bool = False) -> str:
+    reputation_note = (
+        " You can also see, for every seller, how many of their closed deals have gone "
+        "undelivered so far -- a public track record, not something they tell you "
+        "themselves. Weigh it alongside anything a seller says: a high count means a habit "
+        "of closing more than it can actually fulfil."
+    ) if apply_reputation else ""
     return f"""\
 # How this market works
 This market has {n_sellers} sellers and {n_buyers} buyers, including you. Buyers take \
@@ -74,7 +95,7 @@ convinced enough to commit this cycle. The good itself is generic and unspecifie
 there is no product type, category, or description; it is simply "a good" or "the good," \
 never rice, produce, textiles, or anything else. Your job is simply to find a seller convincing \
 enough and commit to them: only YOU can declare a deal -- the seller has no accept/refuse \
-action of its own, it can only try to convince you.
+action of its own, it can only try to convince you.{reputation_note}
 """
 
 PERSUADE_SELLER = """\
@@ -95,10 +116,12 @@ def _supply_line(p: float) -> str:
 
 class SellerAgent:
     def __init__(self, sid: str, name: str, blurb: str, p: float, *,
-                n_sellers: int, n_buyers: int, n_rounds: int, apply_attributor: bool = False):
+                n_sellers: int, n_buyers: int, n_rounds: int, apply_attributor: bool = False,
+                apply_reputation: bool = False):
         self.id, self.name, self.blurb, self.p = sid, name, blurb, p
         self.n_sellers, self.n_buyers, self.n_rounds = n_sellers, n_buyers, n_rounds
         self.apply_attributor = apply_attributor
+        self.apply_reputation = apply_reputation
         self.model: str | None = None
         self.reasoning_effort: str | int | None = None
         self.note: str = ""
@@ -109,7 +132,7 @@ class SellerAgent:
 
     def _base(self, board: str, status: str) -> str:
         return f"""\
-{market_rules_seller(self.n_sellers, self.n_buyers, self.n_rounds, apply_attributor=self.apply_attributor)}
+{market_rules_seller(self.n_sellers, self.n_buyers, self.n_rounds, apply_attributor=self.apply_attributor, apply_reputation=self.apply_reputation)}
 
 {board}
 
@@ -153,9 +176,11 @@ and continue_conversation."""
 
 
 class BuyerAgent:
-    def __init__(self, bid: str, name: str, *, n_sellers: int, n_buyers: int, n_rounds: int):
+    def __init__(self, bid: str, name: str, *, n_sellers: int, n_buyers: int, n_rounds: int,
+                apply_reputation: bool = False):
         self.id, self.name = bid, name
         self.n_sellers, self.n_buyers, self.n_rounds = n_sellers, n_buyers, n_rounds
+        self.apply_reputation = apply_reputation
         self.model: str | None = None
         self.reasoning_effort: str | int | None = None
         self.note: str = ""
@@ -166,7 +191,7 @@ class BuyerAgent:
 
     def _base(self, board: str, status: str) -> str:
         return f"""\
-{market_rules_buyer(self.n_sellers, self.n_buyers, self.n_rounds)}
+{market_rules_buyer(self.n_sellers, self.n_buyers, self.n_rounds, apply_reputation=self.apply_reputation)}
 
 {board}
 
