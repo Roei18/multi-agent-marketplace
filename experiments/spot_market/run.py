@@ -83,6 +83,12 @@ def report(r: RunResult) -> None:
     if r.apply_attributor:
         print(f"  voided total               {m['voided_total']:.0f}   -- closed deals denied "
               f"from a seller's own score")
+    print(f"  expected goods (perfect)   {m['expected_goods_total']:.2f}   -- sum(p_s) * "
+          f"{r.k_cycles} cycles")
+    print(f"  delivered goods (actual)   {m['delivered_goods_total']:.0f}")
+    print(f"  market efficiency          {m['market_efficiency']:.1%}   (delivered / expected)")
+    print(f"  distance from perfect      {m['distance_from_perfect']:+.2f}   goods "
+          f"(0 = perfect; + = left on the table; - = lucky run)")
 
     print(f"\n{'=' * 78}\n2. LLM-ASSISTED MEASURES\n{'=' * 78}")
     print(f"  mechanical vague (never declared): {m['vague']:.0f}  ({m['vague_rate']:.1%} of attempts)")
@@ -91,14 +97,18 @@ def report(r: RunResult) -> None:
 
     print(f"\n{'=' * 78}\n3. EQUILIBRIUM TRACKING (2 candidates -- watch the trend, not one run)\n"
           f"{'=' * 78}")
-    print(f"  {'cycle':>6s} {'close_rate':>11s} {'attempt_rate':>13s} {'top_seller_share':>17s}")
+    print(f"  {'cycle':>6s} {'close_rate':>11s} {'attempt_rate':>13s} {'top_seller_share':>17s} "
+          f"{'expected':>9s} {'delivered':>10s} {'distance':>9s}")
     for row in r.equilibrium_series:
         print(f"  {row['cycle']:6.0f} {row['close_rate']:11.3f} {row['attempt_close_rate']:13.3f} "
-              f"{row['top_seller_share']:17.3f}")
+              f"{row['top_seller_share']:17.3f} {row['expected_goods']:9.2f} "
+              f"{row['delivered_goods']:10.0f} {row['distance_from_perfect']:+9.2f}")
     print("  close_rate    -- of TURNS (buyers) this cycle, fraction that closed with anyone")
     print("  attempt_rate  -- of every CONVERSATION this cycle, fraction that actually closed")
     print("  close_rate/attempt_rate -> 0 : equilibrium A, \"no more deals\"")
     print("  top_seller_share -> 1        : equilibrium B, \"one seller is fixed\"")
+    print("  expected/delivered/distance  -- perfect-market benchmark: expected = sum(p_s) "
+          "this cycle; distance = expected - delivered (0 = perfect)")
     if len(r.equilibrium_series) < 8:
         print(f"  ({len(r.equilibrium_series)} cycles is too few to conclude either one -- "
               f"this is the raw series to extend, not a verdict.)")

@@ -47,11 +47,10 @@ def count_fooled(cycles: list[Cycle], turns: list[Turn]) -> int:
     return fooled
 
 
-def per_cycle_series(cycles: list[Cycle], turns: list[Turn]) -> list[dict]:
-    """One row per cycle, tracking the two candidate equilibria plus two views of
-    "how many closed": `close_rate` -> 0 and `attempt_close_rate` -> 0 would both mean
-    the market has collapsed to no more deals; `top_seller_share` -> 1.0 would mean one
-    seller has captured the entire market.
+def per_cycle_series(cycles: list[Cycle], turns: list[Turn],
+                     expected_goods_per_cycle: float) -> list[dict]:
+    """One row per cycle, tracking the two candidate equilibria, two views of "how many
+    closed", and market efficiency vs. a perfect market:
 
     `close_rate` = of the TURNS (buyers) that acted this cycle, what fraction ended up
     closed with someone -- one buyer counts once, no matter how many sellers it tried.
@@ -59,7 +58,18 @@ def per_cycle_series(cycles: list[Cycle], turns: list[Turn]) -> list[dict]:
     -- including sellers a buyer tried and rejected before closing elsewhere, or never
     closed with at all -- what fraction actually closed. Same numerator as close_rate
     (at most one attempt per turn can close), different denominator: attempts >= turns
-    whenever a buyer had to try more than one seller."""
+    whenever a buyer had to try more than one seller.
+    `top_seller_share` -> 1.0 would mean one seller has captured the entire market.
+
+    `expected_goods` = sum of every seller's arrival probability p_s -- the market's
+    structural potential this cycle, in EXPECTATION (constant every cycle, since p_s
+    doesn't vary run to run). This is the "perfect market" benchmark: the most goods a
+    flawless matching mechanism could expect to move, given the sellers' own odds.
+    `delivered_goods` = actually delivered this cycle (mechanical: count of turns with
+    delivered=True). `distance_from_perfect` = expected_goods - delivered_goods -- 0 is
+    a perfect cycle, positive means the market left goods on the table (a seller had one
+    but nobody who closed with it got it, or -- more likely at these odds -- talk simply
+    never converted a live seller into a delivered buyer), negative is a lucky cycle."""
     out = []
     for c in cycles:
         cycle_turns = [t for t in turns if t.cycle == c.cycle]
@@ -69,6 +79,7 @@ def per_cycle_series(cycles: list[Cycle], turns: list[Turn]) -> list[dict]:
             if t.closed_with:
                 closes_by_seller[t.closed_with] = closes_by_seller.get(t.closed_with, 0) + 1
         n_closed = sum(closes_by_seller.values())
+        delivered = sum(1 for t in cycle_turns if t.delivered)
         out.append({
             "cycle": c.cycle,
             "close_rate": round(n_closed / len(cycle_turns), 3) if cycle_turns else 0.0,
@@ -76,6 +87,9 @@ def per_cycle_series(cycles: list[Cycle], turns: list[Turn]) -> list[dict]:
                                  if cycle_attempts else 0.0,
             "top_seller_share": round(max(closes_by_seller.values()) / n_closed, 3)
                                if n_closed else 0.0,
+            "expected_goods": round(expected_goods_per_cycle, 3),
+            "delivered_goods": delivered,
+            "distance_from_perfect": round(expected_goods_per_cycle - delivered, 3),
         })
     return out
 
@@ -86,13 +100,17 @@ def render_attempt_plain(att: Attempt, seller_name: str, buyer_name: str) -> str
                      for m in att.messages)
 
 
-def build_measurements(cycles: list[Cycle], turns: list[Turn]) -> dict:
+def build_measurements(cycles: list[Cycle], turns: list[Turn],
+                       expected_goods_per_cycle: float) -> dict:
     all_attempts = [a for t in turns for a in t.attempts]
     v = Counter(a.verdict for a in all_attempts)
     n = len(all_attempts) or 1
     closed = sum(1 for a in all_attempts if a.closed) or 1
     judged = [a for a in all_attempts if a.llm_vague is not None]
     llm_vague_n = sum(1 for a in judged if a.llm_vague)
+    k_cycles = len(cycles) or 1
+    expected_total = expected_goods_per_cycle * k_cycles
+    delivered_total = v["true"]    # every delivered good IS a "true" verdict, by construction
     return {
         # 1. Deterministic measures -- pure arithmetic, no LLM
         "attempts_total": len(all_attempts),
@@ -105,6 +123,15 @@ def build_measurements(cycles: list[Cycle], turns: list[Turn]) -> dict:
         "fooled_count": count_fooled(cycles, turns),
         "voided_total": sum(1 for a in all_attempts if a.fined),  # attributor arm only,
                                                                     # else always 0
+
+        # distance from a perfect market -- expected_goods_total is sum(p_s) * k_cycles,
+        # the market's structural potential in expectation; delivered_goods_total is what
+        # actually got delivered (mechanical, = "true" above). 0 distance = perfect;
+        # positive = goods left on the table; negative = a lucky run.
+        "expected_goods_total": round(expected_total, 3),
+        "delivered_goods_total": delivered_total,
+        "market_efficiency": round(delivered_total / expected_total, 3) if expected_total else 0.0,
+        "distance_from_perfect": round(expected_total - delivered_total, 3),
 
         # 2. LLM-assisted measures
         "llm_vague_judged": len(judged),
@@ -423,6 +450,7 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
     ]
     seller_winner = max(seller_summaries, key=lambda s: s.net_score)
     buyer_champion = max(buyer_summaries, key=lambda b: b.owned)
+    expected_goods_per_cycle = sum(s.agent.p for s in sellers.values())
 
     return RunResult(
         scenario=scenario.name, description=scenario.description, seed=seed,
@@ -436,6 +464,6 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
         cycles=cycles, turns=turns, sellers=seller_summaries, buyers=buyer_summaries,
         seller_winner=seller_winner.id, seller_winner_name=seller_winner.name,
         buyer_champion=buyer_champion.id, buyer_champion_name=buyer_champion.name,
-        measurements=build_measurements(cycles, turns),
-        equilibrium_series=per_cycle_series(cycles, turns),
+        measurements=build_measurements(cycles, turns, expected_goods_per_cycle),
+        equilibrium_series=per_cycle_series(cycles, turns, expected_goods_per_cycle),
     )

@@ -187,6 +187,11 @@ _DETERMINISTIC_DEFS = {
     "voided_total": "attributor arm only: closed deals denied from a seller's own score",
     "vague": "attempts where the buyer never declared at all",
     "vague_rate": "vague / attempts_total",
+    "expected_goods_total": "perfect-market benchmark: sum(p_s) x k_cycles, in expectation",
+    "delivered_goods_total": "actually delivered over the whole run (== true, above)",
+    "market_efficiency": "delivered_goods_total / expected_goods_total",
+    "distance_from_perfect": "expected_goods_total - delivered_goods_total "
+                             "(0 = perfect; + = left on the table; - = lucky run)",
 }
 _LLM_DEFS = {
     "llm_vague_judged": "attempts the post-hoc judge rated",
@@ -197,8 +202,10 @@ _LLM_DEFS = {
 
 
 def _fmt(k: str, v: float) -> str:
-    if k.endswith("_rate") or k == "delivered_of_closed":
+    if k.endswith("_rate") or k in ("delivered_of_closed", "market_efficiency"):
         return f"{v:.1%}"
+    if k in ("expected_goods_total", "distance_from_perfect"):
+        return f"{v:+.2f}" if k == "distance_from_perfect" else f"{v:.2f}"
     return f"{v:.0f}"
 
 
@@ -271,12 +278,18 @@ def render_report(r: RunResult, seller_header: str, buyer_header: str,
     out.append("\n**Equilibrium** -- close_rate/attempt_rate->0 is A (\"no more deals\"), "
               "top_seller_share->1 is B (\"one seller fixed\")  \n"
               "close_rate = fraction of turns (buyers) that closed with anyone; "
-              "attempt_rate = fraction of individual conversations that closed\n")
-    out.append("| cycle | close_rate | attempt_rate | top_seller_share |")
-    out.append("|---|---|---|---|")
+              "attempt_rate = fraction of individual conversations that closed  \n"
+              "expected_goods = sum(p_s) this cycle, the perfect-market benchmark; "
+              "delivered_goods = actually delivered; distance_from_perfect = "
+              "expected - delivered (0 = perfect)\n")
+    out.append("| cycle | close_rate | attempt_rate | top_seller_share | expected_goods | "
+              "delivered_goods | distance_from_perfect |")
+    out.append("|---|---|---|---|---|---|---|")
     for row in r.equilibrium_series:
         out.append(f"| {row['cycle']:.0f} | {row['close_rate']:.2f} | "
-                  f"{row['attempt_close_rate']:.2f} | {row['top_seller_share']:.2f} |")
+                  f"{row['attempt_close_rate']:.2f} | {row['top_seller_share']:.2f} | "
+                  f"{row['expected_goods']:.2f} | {row['delivered_goods']:.0f} | "
+                  f"{row['distance_from_perfect']:+.2f} |")
     if len(r.equilibrium_series) < 8:
         out.append(f"\n*{len(r.equilibrium_series)} cycles -- too few to conclude either one.*")
 
