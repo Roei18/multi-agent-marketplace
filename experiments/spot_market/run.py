@@ -87,11 +87,14 @@ def report(r: RunResult) -> None:
 
     print(f"\n{'=' * 78}\n3. EQUILIBRIUM TRACKING (2 candidates -- watch the trend, not one run)\n"
           f"{'=' * 78}")
-    print(f"  {'cycle':>6s} {'close_rate':>11s} {'top_seller_share':>17s}")
+    print(f"  {'cycle':>6s} {'close_rate':>11s} {'attempt_rate':>13s} {'top_seller_share':>17s}")
     for row in r.equilibrium_series:
-        print(f"  {row['cycle']:6.0f} {row['close_rate']:11.3f} {row['top_seller_share']:17.3f}")
-    print("  close_rate -> 0      : equilibrium A, \"no more deals\"")
-    print("  top_seller_share -> 1: equilibrium B, \"one seller is fixed\"")
+        print(f"  {row['cycle']:6.0f} {row['close_rate']:11.3f} {row['attempt_close_rate']:13.3f} "
+              f"{row['top_seller_share']:17.3f}")
+    print("  close_rate    -- of TURNS (buyers) this cycle, fraction that closed with anyone")
+    print("  attempt_rate  -- of every CONVERSATION this cycle, fraction that actually closed")
+    print("  close_rate/attempt_rate -> 0 : equilibrium A, \"no more deals\"")
+    print("  top_seller_share -> 1        : equilibrium B, \"one seller is fixed\"")
     if len(r.equilibrium_series) < 8:
         print(f"  ({len(r.equilibrium_series)} cycles is too few to conclude either one -- "
               f"this is the raw series to extend, not a verdict.)")

@@ -48,12 +48,22 @@ def count_fooled(cycles: list[Cycle], turns: list[Turn]) -> int:
 
 
 def per_cycle_series(cycles: list[Cycle], turns: list[Turn]) -> list[dict]:
-    """One row per cycle, tracking the two candidate equilibria: `close_rate` -> 0
-    would mean the market has collapsed to no more deals; `top_seller_share` -> 1.0
-    would mean one seller has captured the entire market."""
+    """One row per cycle, tracking the two candidate equilibria plus two views of
+    "how many closed": `close_rate` -> 0 and `attempt_close_rate` -> 0 would both mean
+    the market has collapsed to no more deals; `top_seller_share` -> 1.0 would mean one
+    seller has captured the entire market.
+
+    `close_rate` = of the TURNS (buyers) that acted this cycle, what fraction ended up
+    closed with someone -- one buyer counts once, no matter how many sellers it tried.
+    `attempt_close_rate` = of every individual CONVERSATION (attempt) held this cycle
+    -- including sellers a buyer tried and rejected before closing elsewhere, or never
+    closed with at all -- what fraction actually closed. Same numerator as close_rate
+    (at most one attempt per turn can close), different denominator: attempts >= turns
+    whenever a buyer had to try more than one seller."""
     out = []
     for c in cycles:
         cycle_turns = [t for t in turns if t.cycle == c.cycle]
+        cycle_attempts = [a for t in cycle_turns for a in t.attempts]
         closes_by_seller: dict[str, int] = {}
         for t in cycle_turns:
             if t.closed_with:
@@ -62,6 +72,8 @@ def per_cycle_series(cycles: list[Cycle], turns: list[Turn]) -> list[dict]:
         out.append({
             "cycle": c.cycle,
             "close_rate": round(n_closed / len(cycle_turns), 3) if cycle_turns else 0.0,
+            "attempt_close_rate": round(n_closed / len(cycle_attempts), 3)
+                                 if cycle_attempts else 0.0,
             "top_seller_share": round(max(closes_by_seller.values()) / n_closed, 3)
                                if n_closed else 0.0,
         })

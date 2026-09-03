@@ -252,12 +252,15 @@ def render_report(r: RunResult, seller_header: str, buyer_header: str,
     for k, desc in _LLM_DEFS.items():
         out.append(f"| `{k}` | {_fmt(k, m.get(k, 0))} | {desc} |")
 
-    out.append("\n**Equilibrium** -- close_rate->0 is A (\"no more deals\"), "
-              "top_seller_share->1 is B (\"one seller fixed\")\n")
-    out.append("| cycle | close_rate | top_seller_share |")
-    out.append("|---|---|---|")
+    out.append("\n**Equilibrium** -- close_rate/attempt_rate->0 is A (\"no more deals\"), "
+              "top_seller_share->1 is B (\"one seller fixed\")  \n"
+              "close_rate = fraction of turns (buyers) that closed with anyone; "
+              "attempt_rate = fraction of individual conversations that closed\n")
+    out.append("| cycle | close_rate | attempt_rate | top_seller_share |")
+    out.append("|---|---|---|---|")
     for row in r.equilibrium_series:
-        out.append(f"| {row['cycle']:.0f} | {row['close_rate']:.2f} | {row['top_seller_share']:.2f} |")
+        out.append(f"| {row['cycle']:.0f} | {row['close_rate']:.2f} | "
+                  f"{row['attempt_close_rate']:.2f} | {row['top_seller_share']:.2f} |")
     if len(r.equilibrium_series) < 8:
         out.append(f"\n*{len(r.equilibrium_series)} cycles -- too few to conclude either one.*")
 
