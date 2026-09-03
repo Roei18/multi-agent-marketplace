@@ -115,7 +115,7 @@ async def capture_example_prompts(r: RunResult) -> tuple[str, str, list[tuple[st
             s.id: SellerState(SellerAgent(
                 s.id, s.name, blurb_by_id.get(s.id, ""), s.arrival_prob,
                 n_sellers=r.n_sellers, n_buyers=r.n_buyers, n_rounds=r.n_rounds,
-                apply_attributor=r.apply_attributor))
+                apply_attributor=r.apply_attributor, apply_reputation=r.apply_reputation))
             for s in r.sellers
         }
         buyers = {
