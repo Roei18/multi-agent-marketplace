@@ -28,7 +28,11 @@ from experiments.spot_market.scenarios import BUYERS, SELLERS, Scenario
 
 def draw_stock(rng: random.Random, p: float) -> bool:
     """A single Bernoulli trial -- has a good this cycle, or doesn't. No accumulation:
-    called once per seller per cycle, never per-round."""
+    called AT MOST once per seller per cycle -- the instant that seller gets its FIRST
+    closed deal that cycle, never before (genuine uncertainty up to that point) and
+    never again that cycle (any later closer with the same seller is automatically
+    fooled, no draw needed). A seller nobody closes with that cycle never draws at
+    all -- there'd be nothing to reveal either way."""
     return rng.random() < p
 
 
@@ -329,8 +333,9 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
     round_no = 0
 
     for cyc_no in range(1, scenario.k_cycles + 1):
-        drawn = {sid: draw_stock(rng, sellers[sid].agent.p) for sid in seller_order}
-        cycle_first_closer: dict[str, str] = {}    # seller_id -> buyer_id
+        cycle_drawn: dict[str, bool] = {}    # seller_id -> draw result, filled in lazily:
+                                              # only sellers that get a first close this cycle
+                                              # ever draw at all
         cycle_turns: list[Turn] = []
 
         if verbose:
@@ -372,7 +377,29 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                     s.deals_closed += 1
                     b.deals_closed += 1
                     turn.closed_with = sid
-                    cycle_first_closer.setdefault(sid, bid)
+
+                    # Resolve THIS INSTANT, not at cycle end: the seller's single
+                    # Bernoulli(p_s) draw for the cycle happens the moment its FIRST
+                    # deal closes -- any buyer that closes with this same seller LATER
+                    # in the same cycle is deterministically fooled (p=0, no draw),
+                    # since the seller's one good-or-nothing shot is already spent.
+                    if sid not in cycle_drawn:
+                        cycle_drawn[sid] = draw_stock(rng, s.agent.p)
+                        won = cycle_drawn[sid]
+                    else:
+                        won = False
+                    if won:
+                        att.verdict = "true"
+                        turn.delivered = True
+                        b.owned += 1
+                        b.deals_delivered += 1
+                        s.deals_delivered += 1
+                    else:
+                        att.verdict = "false"
+                        b.deals_failed += 1
+                        s.deals_failed += 1
+                        if scenario.apply_attributor:
+                            att.fined = True
                     break
                 else:
                     att.verdict = "vague"
@@ -382,35 +409,15 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
             cycle_turns.append(turn)
             turns.append(turn)
             if verbose:
-                print(f"  round {round_no} buyer={bid} "
-                      f"{'-> closed with ' + turn.closed_with if turn.closed_with else '-> no deal'}")
+                outcome = ("no deal" if not turn.closed_with else
+                          f"closed with {turn.closed_with} -> "
+                          f"{'DELIVERED' if turn.delivered else 'fooled/missed'}")
+                print(f"  round {round_no} buyer={bid} -> {outcome}")
 
-        # resolve the cycle: reveal draws, first closer of each seller wins delivery
-        for turn in cycle_turns:
-            if not turn.closed_with:
-                continue
-            sid = turn.closed_with
-            s = sellers[sid]
-            b = buyers[turn.buyer]
-            att = next(a for a in turn.attempts if a.seller == sid and a.closed)
-            won = drawn[sid] and cycle_first_closer.get(sid) == turn.buyer
-            if won:
-                att.verdict = "true"
-                turn.delivered = True
-                b.owned += 1
-                b.deals_delivered += 1
-                s.deals_delivered += 1
-            else:
-                att.verdict = "false"
-                b.deals_failed += 1
-                s.deals_failed += 1
-                if scenario.apply_attributor:
-                    att.fined = True
-
-        cycles.append(Cycle(cycle=cyc_no, drawn=drawn, rounds=[t.round for t in cycle_turns]))
+        cycles.append(Cycle(cycle=cyc_no, drawn=cycle_drawn, rounds=[t.round for t in cycle_turns]))
         if verbose:
-            got = [sid for sid, d in drawn.items() if d]
-            print(f"  cycle {cyc_no} draws: {got or '(none)'}")
+            got = [sid for sid, d in cycle_drawn.items() if d]
+            print(f"  cycle {cyc_no} draws (sellers that closed AND had the good): {got or '(none)'}")
 
     if verbose:
         print(f"\n{'=' * 78}\nJUDGING VAGUENESS (post-hoc, LLM-assisted, no bearing on verdict)\n"

@@ -147,17 +147,20 @@ class Turn(BaseModel):
 
 
 class Cycle(BaseModel):
-    """One full pass through buyers 1..M. Every seller draws ONE fresh
-    single-good-or-nothing Bernoulli(p_s) at the start of the cycle -- shared across
-    all M turns in it, never re-drawn mid-cycle, never carried into the next cycle. A
-    seller may close deals with several buyers across the cycle's turns; if it drew a
-    good, only the FIRST buyer (by round order) it closed with that cycle is delivered
-    -- everyone else who also closed with it that cycle is stood up. This is the whole
-    'FIFO' idea from the spec, and needs no explicit queue: buyers already act in a
-    fixed order within the cycle, so first-closed-first-served falls out for free."""
+    """One full pass through buyers 1..M. A seller's single good-or-nothing
+    Bernoulli(p_s) draw for the cycle happens the INSTANT it gets its first closed
+    deal that cycle -- not pre-drawn at the cycle's start. Before that first close, a
+    seller negotiating with anyone is under genuine uncertainty; the moment it closes
+    with its first buyer, the draw resolves right there, and any buyer that also
+    closes with that same seller LATER the same cycle is automatically fooled (no
+    draw needed -- the seller's one shot is already spent). A seller nobody closes
+    with that cycle never draws at all. This is the whole 'FIFO' idea from the spec,
+    and needs no explicit queue: buyers already act in a fixed order within the
+    cycle, so first-closed-first-served falls out for free, resolved in real time."""
 
     cycle: int
-    drawn: dict[str, bool] = Field(default_factory=dict)   # every seller's draw this cycle
+    drawn: dict[str, bool] = Field(default_factory=dict)   # only sellers that got a first
+                                                             # close this cycle -- id -> draw
     rounds: list[int] = Field(default_factory=list)        # this cycle's round numbers, in order
 
 

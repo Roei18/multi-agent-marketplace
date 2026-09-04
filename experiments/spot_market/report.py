@@ -59,12 +59,14 @@ from experiments.spot_market.scenarios import SELLERS
 
 _GAME_RULES = [
     "Instant delivery: a deal is for THIS cycle's draw only -- no future rounds, no promises.",
-    "Sellers can't stockpile: each cycle, every seller gets one good or none (a Bernoulli "
-    "draw), decided before that cycle's talk starts.",
+    "Sellers can't stockpile: a seller's one good-or-nothing Bernoulli draw for the cycle "
+    "happens the INSTANT its first deal closes that cycle, not pre-drawn at the start. A "
+    "seller nobody closes with that cycle never draws at all.",
     "Declaring is buyer-only: the seller can't accept/refuse, only persuade. A seller may "
-    "be closed with by many buyers in one cycle, but can fulfil only the FIRST.",
-    "Sellers don't know their own draw while negotiating -- genuine uncertainty, same "
-    "info timing as promises.",
+    "be closed with by many buyers in one cycle, but can fulfil only the FIRST -- resolved "
+    "live: any later closer with the same seller that cycle is automatically fooled.",
+    "Sellers don't know their own draw before their first close each cycle -- genuine "
+    "uncertainty up to that point, same spirit as promises.",
     "One buyer acts per round, round-robin (buyer 1..M, repeating for K cycles) -- every "
     "round has the identical shape.",
     "A buyer may try several sellers per turn, but declaring locks its turn to that seller.",
