@@ -174,8 +174,11 @@ class SellerSummary(BaseModel):
     deals_failed: int = 0       # closed but seller's draw came up empty
     vague_attempts: int = 0     # negotiated but never reached a mutual declare
     deals_voided: int = 0       # attributor arm only: false closes denied from the score
-    net_score: int = 0          # deals_closed - deals_voided (== deals_closed outside
-                                # the attributor arm, since nothing is ever voided there)
+    net_score: int = 0          # deals_closed - deals_voided (== deals_delivered, since every
+                                # closed-not-voided deal IS delivered) outside the penalty arm;
+                                # under penalty, deals_delivered - deals_voided instead -- a
+                                # voided deal actively costs a point rather than just not
+                                # counting
     final_note: str = ""
 
 
@@ -201,6 +204,7 @@ class RunResult(BaseModel):
     n_rounds: int
     apply_attributor: bool = False
     apply_reputation: bool = False
+    apply_penalty: bool = False
     max_attempts_per_turn: int = 3
     max_messages: int = 8
     seller_model: str | None = None      # None = environment default (LLM_MODEL)

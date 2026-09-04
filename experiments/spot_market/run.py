@@ -52,7 +52,8 @@ def check_supply(s, trials: int = 20000) -> None:
 
 
 def report(r: RunResult) -> None:
-    scored = "net score" if r.apply_attributor else "deals closed"
+    scored = ("net score: delivered - voided" if r.apply_penalty else
+             "net score: closed - voided" if r.apply_attributor else "deals closed")
     print(f"\n{'*' * 78}")
     print(f"SELLER WINNER ({scored}): {r.seller_winner_name} ({r.seller_winner})")
     print(f"BUYER CHAMPION (goods owned): {r.buyer_champion_name} ({r.buyer_champion})")

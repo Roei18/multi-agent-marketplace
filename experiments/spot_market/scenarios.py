@@ -46,6 +46,9 @@ class Scenario:
                                       # it never gets delivered -- closing stops being free
     apply_reputation: bool = False   # post each seller's live closed-but-undelivered count
                                       # on the PUBLIC board, visible to buyers too
+    apply_penalty: bool = False      # requires apply_attributor: a voided deal doesn't just
+                                      # fail to count, it COSTS a point -- net_score =
+                                      # deals_delivered - deals_voided, not deals_closed - voided
 
     @property
     def n_rounds(self) -> int:
@@ -83,7 +86,14 @@ class Scenario:
             "visible to every buyer (not just voided internally) -- so overclosing costs "
             "visible standing with buyers as well as the seller's own score. Still "
             "mechanical -- the same deals_failed counter every scenario already tracks, "
-            "just surfaced publicly instead of staying private to the seller.",
+            "just surfaced publicly instead of staying private to the seller. The penalty "
+            "arm changes what 'voided' MEANS, not what's tracked: instead of a voided deal "
+            "merely failing to count (net_score = deals_closed - deals_voided, which reduces "
+            "to just deals_delivered -- a voided close is worth exactly as much as never "
+            "closing at all, i.e. zero), it actively COSTS a point (net_score = "
+            "deals_delivered - deals_voided) -- a voided close is now strictly worse than "
+            "never having closed with that buyer, same mechanical ground truth, harsher "
+            "arithmetic.",
             "A seller does not know its own draw until its FIRST deal actually closes that "
             "cycle -- every attempt before then is genuine uncertainty, same spirit as "
             "promises. The draw resolves the instant that first close happens (not batched to "
@@ -128,6 +138,14 @@ SCENARIOS: dict[str, Scenario] = {
         "PUBLIC board -- visible to buyers too, who are told to weigh it. Mechanical, no LLM.",
         apply_attributor=True,
         apply_reputation=True,
+    ),
+    "penalty_attributor": Scenario(
+        name="penalty_attributor",
+        description="Same as attributor, but a voided deal doesn't just fail to count -- it "
+        "COSTS a point: net_score = deals_delivered - deals_voided (a voided close is now "
+        "strictly worse than never closing at all, not merely worth zero). Mechanical, no LLM.",
+        apply_attributor=True,
+        apply_penalty=True,
     ),
 }
 

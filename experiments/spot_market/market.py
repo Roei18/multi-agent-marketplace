@@ -308,7 +308,8 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
         a = SellerAgent(sid, name, blurb, p, n_sellers=scenario.n_sellers,
                        n_buyers=scenario.n_buyers, n_rounds=scenario.n_rounds,
                        apply_attributor=scenario.apply_attributor,
-                       apply_reputation=scenario.apply_reputation)
+                       apply_reputation=scenario.apply_reputation,
+                       apply_penalty=scenario.apply_penalty)
         if seller_model:
             a.model = seller_model
         if seller_reasoning_effort:
@@ -438,13 +439,20 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
             if a.fined:
                 voided_by_seller[a.seller] = voided_by_seller.get(a.seller, 0) + 1
 
+    def _net_score(s: SellerState) -> int:
+        voided = voided_by_seller.get(s.id, 0)
+        # penalty: a voided deal actively COSTS a point (delivered - voided). plain
+        # attributor: a voided deal merely fails to count (closed - voided, which reduces
+        # to exactly deals_delivered, since every closed-not-voided deal IS delivered).
+        return (s.deals_delivered - voided) if scenario.apply_penalty else s.deals_closed - voided
+
     seller_summaries = [
         SellerSummary(id=s.id, name=s.name, arrival_prob=s.agent.p,
                       times_approached=s.times_approached, deals_closed=s.deals_closed,
                       deals_delivered=s.deals_delivered, deals_failed=s.deals_failed,
                       vague_attempts=s.vague_attempts,
                       deals_voided=voided_by_seller.get(s.id, 0),
-                      net_score=s.deals_closed - voided_by_seller.get(s.id, 0),
+                      net_score=_net_score(s),
                       final_note=s.agent.note)
         for s in sellers.values()
     ]
@@ -463,7 +471,7 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
         scenario=scenario.name, description=scenario.description, seed=seed,
         n_sellers=scenario.n_sellers, n_buyers=scenario.n_buyers, k_cycles=scenario.k_cycles,
         n_rounds=scenario.n_rounds, apply_attributor=scenario.apply_attributor,
-        apply_reputation=scenario.apply_reputation,
+        apply_reputation=scenario.apply_reputation, apply_penalty=scenario.apply_penalty,
         max_attempts_per_turn=scenario.max_attempts_per_turn, max_messages=scenario.max_messages,
         seller_model=seller_model, buyer_model=buyer_model,
         seller_reasoning_effort=seller_reasoning_effort, buyer_reasoning_effort=buyer_reasoning_effort,
