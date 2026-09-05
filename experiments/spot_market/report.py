@@ -141,8 +141,9 @@ async def capture_example_prompts(r: RunResult) -> tuple[str, str, list[tuple[st
                                     reputation_lines=reputation_lines)
         buyer_board = public_board(buyer_lines=buyer_rows(list(buyers.values())),
                                    reputation_lines=reputation_lines)
-        seller_status = seller_status_view(s1)
-        buyer_status = buyer_status_view(b1)
+        seller_status = seller_status_view(s1, cycle_no=1, k_cycles=r.k_cycles,
+                                           locked_this_cycle=False)
+        buyer_status = buyer_status_view(b1, cycle_no=1, k_cycles=r.k_cycles)
 
         # the shared header every turn for this role opens with -- captured directly,
         # no LLM call, exactly the string turn()/choose() prepend to their own tail
