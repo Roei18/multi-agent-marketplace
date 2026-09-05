@@ -3,9 +3,9 @@
     python -m experiments.spot_market.run --check-supply                # free, no LLM
     python -m experiments.spot_market.run --scenario baseline --seed 0
     python -m experiments.spot_market.run --sellers 3 --buyers 4 --cycles 3
-    python -m experiments.spot_market.run --agent-models model_configs/one_seller_gemma.json
-        # swap ONE specific agent onto a different model, everyone else stays on the
-        # env default -- see experiments/spot_market/model_configs/ for ready-made ones
+    python -m experiments.spot_market.run --agent-overrides model_configs/one_seller_gemma.json
+        # give ONE specific agent a different model and/or reasoning_effort, everyone
+        # else stays on the env default -- see experiments/spot_market/model_configs/
 """
 
 from __future__ import annotations
@@ -137,10 +137,12 @@ async def main() -> None:
                     choices=["minimal", "low", "medium", "high"])
     ap.add_argument("--buyer-reasoning-effort", default=None,
                     choices=["minimal", "low", "medium", "high"])
-    ap.add_argument("--agent-models", default=None,
-                    help="path to a JSON file mapping specific agent ids to a model, e.g. "
-                    "{\"S1\": \"google/gemma-3-27b-it\"} -- overrides --seller-model/"
-                    "--buyer-model for just those agents, everyone else stays on the default")
+    ap.add_argument("--agent-overrides", default=None,
+                    help="path to a JSON file mapping specific agent ids to a model and/or "
+                    "reasoning_effort, e.g. {\"S1\": {\"reasoning_effort\": \"high\"}} or "
+                    "{\"S1\": {\"model\": \"google/gemma-3-27b-it\"}} -- overrides "
+                    "--seller-model/--buyer-model/--*-reasoning-effort for just those "
+                    "agents, everyone else stays on the default")
     ap.add_argument("--tag", default="")
     ap.add_argument("--quiet", action="store_true")
     ap.add_argument("--check-supply", action="store_true")
@@ -169,9 +171,9 @@ async def main() -> None:
         check_supply(s)
         return
 
-    agent_model_overrides = {}
-    if args.agent_models:
-        agent_model_overrides = json.loads(Path(args.agent_models).read_text())
+    agent_overrides = {}
+    if args.agent_overrides:
+        agent_overrides = json.loads(Path(args.agent_overrides).read_text())
 
     lo, hi = estimate_llm_calls(s)
     print(f"Scale: {s.n_sellers} sellers, {s.n_buyers} buyers, {s.k_cycles} cycles "
@@ -180,14 +182,14 @@ async def main() -> None:
     if args.seller_model or args.buyer_model:
         print(f"MODEL OVERRIDE -- seller: {args.seller_model or '(default)'}, "
               f"buyer: {args.buyer_model or '(default)'}")
-    if agent_model_overrides:
-        print(f"PER-AGENT MODEL OVERRIDE -- {agent_model_overrides}")
+    if agent_overrides:
+        print(f"PER-AGENT OVERRIDE -- {agent_overrides}")
 
     result = await run_market(s, seed=args.seed, verbose=not args.quiet,
                               seller_model=args.seller_model, buyer_model=args.buyer_model,
                               seller_reasoning_effort=args.seller_reasoning_effort,
                               buyer_reasoning_effort=args.buyer_reasoning_effort,
-                              agent_model_overrides=agent_model_overrides)
+                              agent_overrides=agent_overrides)
     path = save(result, tag=args.tag)
     report(result)
     print(f"\nSaved: {path}")
