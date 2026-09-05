@@ -211,6 +211,9 @@ class RunResult(BaseModel):
     buyer_model: str | None = None
     seller_reasoning_effort: str | None = None   # None = environment default (LLM_REASONING_EFFORT)
     buyer_reasoning_effort: str | None = None
+    agent_model_overrides: dict[str, str] = Field(default_factory=dict)   # {agent_id: model}
+                                                    # -- specific agents on a different model
+                                                    # than the uniform seller_model/buyer_model
     protocol: str = ("round-robin, one buyer per round; every seller draws a fresh "
                      "single-good Bernoulli(p_s) every round, no accumulation; a deal is "
                      "for this round's good only; verdict is pure arithmetic, no LLM judge")

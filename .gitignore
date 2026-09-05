@@ -227,6 +227,7 @@ __marimo__/
 *.json
 
 !.vscode/settings.json
+!experiments/spot_market/model_configs/*.json
 
 # generated experiment outputs (spot_market's report.py writes .md alongside the .json)
 experiments/spot_market/results/

@@ -234,6 +234,8 @@ def render_report(r: RunResult, seller_header: str, buyer_header: str,
     out.append(f"seller: {r.seller_model or 'default'}/{r.seller_reasoning_effort or 'default'}   "
               f"buyer: {r.buyer_model or 'default'}/{r.buyer_reasoning_effort or 'default'}   "
               f"attempts/turn: {r.max_attempts_per_turn}   msg cap: {r.max_messages}  ")
+    if r.agent_model_overrides:
+        out.append(f"per-agent model override: {r.agent_model_overrides}  ")
     scored = ("net score: delivered - voided" if r.apply_penalty else
              "net score: closed - voided" if r.apply_attributor else "deals closed")
     out.append(f"winner ({scored}): {r.seller_winner_name} ({r.seller_winner})   "

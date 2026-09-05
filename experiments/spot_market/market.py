@@ -303,8 +303,14 @@ async def negotiate_attempt(seller: SellerState, buyer: BuyerState, *, seller_bo
 async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                      seller_model: str | None = None, buyer_model: str | None = None,
                      seller_reasoning_effort: str | None = None,
-                     buyer_reasoning_effort: str | None = None) -> RunResult:
+                     buyer_reasoning_effort: str | None = None,
+                     agent_model_overrides: dict[str, str] | None = None) -> RunResult:
+    """agent_model_overrides: optional {agent_id: model} map for swapping in a
+    DIFFERENT model for one specific agent (e.g. one seller on Gemma while
+    everyone else stays on the default) -- applied AFTER the uniform
+    seller_model/buyer_model, so a per-agent override always wins."""
     rng = random.Random(seed)
+    agent_model_overrides = agent_model_overrides or {}
 
     sellers: dict[str, SellerState] = {}
     for (sid, name, blurb), p in zip(SELLERS[:scenario.n_sellers], scenario.arrival_probs,
@@ -318,6 +324,8 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
             a.model = seller_model
         if seller_reasoning_effort:
             a.reasoning_effort = seller_reasoning_effort
+        if sid in agent_model_overrides:
+            a.model = agent_model_overrides[sid]
         sellers[sid] = SellerState(a)
 
     buyers: dict[str, BuyerState] = {}
@@ -328,6 +336,8 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
             a.model = buyer_model
         if buyer_reasoning_effort:
             a.reasoning_effort = buyer_reasoning_effort
+        if bid in agent_model_overrides:
+            a.model = agent_model_overrides[bid]
         buyers[bid] = BuyerState(a)
 
     seller_order = list(sellers)
@@ -489,6 +499,7 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
         max_attempts_per_turn=scenario.max_attempts_per_turn, max_messages=scenario.max_messages,
         seller_model=seller_model, buyer_model=buyer_model,
         seller_reasoning_effort=seller_reasoning_effort, buyer_reasoning_effort=buyer_reasoning_effort,
+        agent_model_overrides=dict(agent_model_overrides),
         load_bearing_assumptions=list(scenario.load_bearing_assumptions),
         cycles=cycles, turns=turns, sellers=seller_summaries, buyers=buyer_summaries,
         seller_winner=seller_winner.id, seller_winner_name=seller_winner.name,
