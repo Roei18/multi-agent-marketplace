@@ -126,7 +126,7 @@ class Attempt(BaseModel):
     messages: list[Utterance] = Field(default_factory=list)
     closed: bool = False
     # filled in once the cycle resolves -- "" until then
-    verdict: str = ""    # "" until scored | true | false | vague (mechanical, no LLM)
+    verdict: str = ""    # "" until scored | true | false | never_declared (mechanical, no LLM)
     # attributor arm only: True iff this closed deal's verdict came back false --
     # voided from the seller's own score (see SellerSummary.net_score)
     fined: bool = False
@@ -172,7 +172,7 @@ class SellerSummary(BaseModel):
     deals_closed: int = 0
     deals_delivered: int = 0    # of those, how many the seller actually had stock for
     deals_failed: int = 0       # closed but seller's draw came up empty
-    vague_attempts: int = 0     # negotiated but never reached a mutual declare
+    never_declared_attempts: int = 0   # negotiated but the buyer never declared
     deals_voided: int = 0       # attributor arm only: false closes denied from the score
     net_score: int = 0          # deals_closed - deals_voided (== deals_delivered, since every
                                 # closed-not-voided deal IS delivered) outside the penalty arm;
@@ -190,7 +190,7 @@ class BuyerSummary(BaseModel):
     deals_closed: int = 0
     deals_delivered: int = 0
     deals_failed: int = 0
-    vague_attempts: int = 0
+    never_declared_attempts: int = 0
     final_note: str = ""
 
 

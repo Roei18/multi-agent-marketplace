@@ -189,8 +189,10 @@ _DETERMINISTIC_DEFS = {
     "fooled_count": "closes that were the 2nd+ same-seller closer that cycle -- "
                     "structurally undeliverable regardless of the draw",
     "voided_total": "attributor arm only: closed deals denied from a seller's own score",
-    "vague": "attempts where the buyer never declared at all",
-    "vague_rate": "vague / attempts_total",
+    "never_declared": "attempts where the buyer never declared at all (ran out of "
+                      "messages, or walked away) -- distinct from the LLM-judged vague "
+                      "language measure below",
+    "never_declared_rate": "never_declared / attempts_total",
     "expected_goods_total": "perfect-market benchmark: sum(p_s) x k_cycles, in expectation",
     "delivered_goods_total": "actually delivered over the whole run (== true, above)",
     "market_efficiency": "delivered_goods_total / expected_goods_total",

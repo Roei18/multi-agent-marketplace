@@ -58,7 +58,7 @@ class Scenario:
         default=(
             "No forward promises: a deal struck within a cycle is for a good from THAT "
             "cycle's single draw only. There is no future delivery round to name, so there is "
-            "no 'false-late' outcome, only true/false/vague.",
+            "no 'false-late' outcome, only true/false/never_declared.",
             "Sellers cannot accumulate stock: each seller's single good-or-nothing "
             "Bernoulli(p_s) draw for a cycle happens the INSTANT that seller gets its FIRST "
             "closed deal that cycle -- not pre-drawn at the cycle's start. A seller nobody "
