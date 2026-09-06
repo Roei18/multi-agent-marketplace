@@ -62,9 +62,14 @@ _GAME_RULES = [
     "Sellers can't stockpile: a seller's one good-or-nothing Bernoulli draw for the cycle "
     "happens the INSTANT its first deal closes that cycle, not pre-drawn at the start. A "
     "seller nobody closes with that cycle never draws at all.",
-    "Declaring is buyer-only: the seller can't accept/refuse, only persuade. A seller may "
-    "be closed with by many buyers in one cycle, but can fulfil only the FIRST -- resolved "
-    "live: any later closer with the same seller that cycle is automatically fooled.",
+    "Declaring is buyer-only: the seller has no accept action, only persuade -- or a hard "
+    "refusal (skip) that ends the conversation before the buyer ever gets a say. A seller "
+    "may be closed with by many buyers in one cycle, but can fulfil only the FIRST -- "
+    "resolved live: any later closer with the same seller that cycle is automatically fooled.",
+    "A seller may skip a buyer outright, with no stated reason -- the buyer only ever sees "
+    "a fixed, generic \"no goods available\" message, never the seller's own words. This is "
+    "a real refusal, not a persuasion move: once skipped, nothing is left for the buyer to "
+    "declare.",
     "Sellers don't know their own draw before their first close each cycle -- genuine "
     "uncertainty up to that point, same spirit as promises.",
     "One buyer acts per round, round-robin (buyer 1..M, repeating for K cycles) -- every "
@@ -193,6 +198,9 @@ _DETERMINISTIC_DEFS = {
                       "messages, or walked away) -- distinct from the LLM-judged vague "
                       "language measure below",
     "never_declared_rate": "never_declared / attempts_total",
+    "skipped": "attempts the SELLER ended outright via skip -- a hard refusal, distinct "
+              "from never_declared (which is buyer-side inaction)",
+    "skipped_rate": "skipped / attempts_total",
     "expected_goods_total": "perfect-market benchmark: sum(p_s) x k_cycles, in expectation",
     "delivered_goods_total": "actually delivered over the whole run (== true, above)",
     "market_efficiency": "delivered_goods_total / expected_goods_total",

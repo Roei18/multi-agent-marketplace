@@ -82,18 +82,27 @@ your turn. Your goal is to own as many goods as you can by the end of the run --
 the whole contest. This is a critical market for your company's survival.
 
 When you approach a seller, you need to decide if to declare a deal if you think this \
-seller will provide you the good, or else skip it to the next one. Once you declare a \
-deal, you won't be able to talk to other sellers in this round.{reputation_note}
+seller will provide you the good, or else move on to a different seller. Once you declare \
+a deal, you won't be able to talk to other sellers in this round.{reputation_note}
 Notes:
 1. The good is generic, there are no details to discuss.
 2. When you close a deal with a seller, it either provides the good on the spot or not. \
 There are no future deals in this market.
+3. A seller may also refuse to deal with you outright -- if that happens you'll just see \
+a generic "no goods available" message, no explanation, and the conversation ends right \
+there. Nothing you can do about it except try someone else.
 """
 
 PERSUADE_SELLER = """\
-You have no declare/accept/refuse action -- you cannot close this deal yourself, only \
-talk. Your entire job is to be convincing enough that the buyer commits to you. The buyer \
-may commit at any point, on any message, without waiting for anything from you."""
+You cannot declare a deal yourself -- only the buyer can do that, by committing on their \
+own. Short of that, your entire job is to be convincing enough that they do. The buyer \
+may commit at any point, on any message, without waiting for anything from you.
+
+You DO have a real refusal, though: set skip to TRUE if you don't want to engage with \
+this buyer at all. That ends the conversation immediately, right now -- they only ever \
+see a fixed, generic "no goods available" message, never your own words or reasoning. \
+It is a hard refusal, not a persuasion move: once skipped, there is nothing left for \
+them to declare."""
 
 DECLARE_BUYER = """\
 This is entirely your call -- the seller cannot accept or refuse, it can only try to \
@@ -104,6 +113,9 @@ with nothing further needed from them. Set it false while you still need convinc
 
 def _supply_line(p: float) -> str:
     return f"You have about a {p:.0%} chance of getting a good this cycle."
+
+
+SKIP_MESSAGE = "No goods available."
 
 
 class SellerAgent:
@@ -160,12 +172,13 @@ You are {self.name} ({self.id}) -- {self.blurb}.
 {history}
 
 It is your turn. Return private_reasoning (never seen by them), updated_note, message, \
-and continue_conversation."""
+skip, and continue_conversation."""
         t: SellerTurn = await call_llm(prompt, SellerTurn, model=self.model,
                                        reasoning_effort=self.reasoning_effort)
         self.note = t.updated_note
         return Utterance(speaker=self.id, private_reasoning=t.private_reasoning,
-                         message=t.message, continue_conversation=t.continue_conversation)
+                         message=SKIP_MESSAGE if t.skip else t.message, skip=t.skip,
+                         continue_conversation=False if t.skip else t.continue_conversation)
 
 
 class BuyerAgent:

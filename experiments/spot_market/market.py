@@ -120,9 +120,11 @@ def build_measurements(cycles: list[Cycle], turns: list[Turn],
         "attempts_total": len(all_attempts),
         "closed_total": closed if any(a.closed for a in all_attempts) else 0,
         "true": v["true"], "false": v["false"], "never_declared": v["never_declared"],
+        "skipped": v["skipped"],
         "true_rate": round(v["true"] / n, 3),
         "false_rate": round(v["false"] / n, 3),
         "never_declared_rate": round(v["never_declared"] / n, 3),
+        "skipped_rate": round(v["skipped"] / n, 3),
         "delivered_of_closed": round(v["true"] / closed, 3),
         "fooled_count": count_fooled(cycles, turns),
         "voided_total": sum(1 for a in all_attempts if a.fined),  # attributor arm only,
@@ -163,6 +165,7 @@ class SellerState:
     deals_delivered: int = 0
     deals_failed: int = 0
     never_declared_attempts: int = 0
+    skips_used: int = 0
 
     @property
     def id(self) -> str:
@@ -182,6 +185,7 @@ class BuyerState:
     deals_delivered: int = 0
     deals_failed: int = 0
     never_declared_attempts: int = 0
+    times_skipped: int = 0
 
     @property
     def id(self) -> str:
@@ -231,7 +235,8 @@ def seller_status_view(s: SellerState, *, cycle_no: int, k_cycles: int,
                        locked_this_cycle: bool) -> str:
     base = (f"Deals closed so far: {s.deals_closed}. Delivered: {s.deals_delivered}. "
            f"Closed but NOT delivered: {s.deals_failed}. Approached {s.times_approached} "
-           f"time(s) so far. This is cycle {cycle_no} of {k_cycles}.")
+           f"time(s) so far. Skipped {s.skips_used} buyer(s) outright so far. This is "
+           f"cycle {cycle_no} of {k_cycles}.")
     if locked_this_cycle:
         base += " You already closed a deal with another buyer earlier THIS cycle."
     return base
@@ -268,10 +273,11 @@ async def negotiate_attempt(seller: SellerState, buyer: BuyerState, *, seller_bo
                             buyer_board: str, seller_status: str, buyer_status: str,
                             max_messages: int, approach_reasoning: str) -> Attempt:
     """Alternates seller/buyer one message at a time (seller first, since it's being
-    approached). Declaring is a BUYER-ONLY action -- the seller only ever persuades, it
-    has no accept/refuse of its own -- so the attempt closes the instant the buyer
-    declares, on ANY of its turns, with no need to wait for the seller to reciprocate
-    (there is nothing for it to reciprocate)."""
+    approached). Declaring is a BUYER-ONLY action -- the seller only ever persuades or
+    refuses outright (skip) -- so the attempt closes the instant the buyer declares, on
+    ANY of its turns, with no need to wait for the seller to reciprocate (there is
+    nothing for it to reciprocate); or the instant the seller skips, even on message 0,
+    since a hard refusal ends things right there regardless of turn count."""
     att = Attempt(seller=seller.id, approach_reasoning=approach_reasoning)
     for i in range(max_messages):
         opening = i == 0
@@ -281,6 +287,8 @@ async def negotiate_attempt(seller: SellerState, buyer: BuyerState, *, seller_bo
                 buyer_id=buyer.id, messages=att.messages, opening=opening,
                 max_messages=max_messages)
             att.messages.append(msg)
+            if msg.skip:
+                break
         else:
             msg = await buyer.agent.turn(
                 board=buyer_board, status=buyer_status, seller_name=seller.agent.name,
@@ -430,6 +438,10 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                         if scenario.apply_attributor:
                             att.fined = True
                     break
+                elif att.messages and att.messages[-1].skip:
+                    att.verdict = "skipped"
+                    s.skips_used += 1
+                    b.times_skipped += 1
                 else:
                     att.verdict = "never_declared"
                     s.never_declared_attempts += 1
@@ -479,6 +491,7 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                       times_approached=s.times_approached, deals_closed=s.deals_closed,
                       deals_delivered=s.deals_delivered, deals_failed=s.deals_failed,
                       never_declared_attempts=s.never_declared_attempts,
+                      skips_used=s.skips_used,
                       deals_voided=voided_by_seller.get(s.id, 0),
                       net_score=_net_score(s),
                       final_note=s.agent.note)
@@ -488,6 +501,7 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
         BuyerSummary(id=b.id, name=b.agent.name, owned=b.owned, turns_taken=b.turns_taken,
                      deals_closed=b.deals_closed, deals_delivered=b.deals_delivered,
                      deals_failed=b.deals_failed, never_declared_attempts=b.never_declared_attempts,
+                     times_skipped=b.times_skipped,
                      final_note=b.agent.note)
         for b in buyers.values()
     ]

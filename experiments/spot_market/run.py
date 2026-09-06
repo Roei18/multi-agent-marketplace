@@ -63,17 +63,19 @@ def report(r: RunResult) -> None:
     print("*" * 78)
 
     print(f"\n{'seller':24s} {'p':>5s} {'appr':>5s} {'closed':>6s} {'deliv':>6s} "
-          f"{'failed':>6s} {'nodecl':>6s} {'void':>5s} {'net':>5s}")
+          f"{'failed':>6s} {'nodecl':>6s} {'skips':>5s} {'void':>5s} {'net':>5s}")
     for s in sorted(r.sellers, key=lambda x: -x.net_score):
         print(f"{s.name[:22]:24s} {s.arrival_prob:5.2f} {s.times_approached:5d} "
               f"{s.deals_closed:6d} {s.deals_delivered:6d} {s.deals_failed:6d} "
-              f"{s.never_declared_attempts:6d} {s.deals_voided:5d} {s.net_score:5d}")
+              f"{s.never_declared_attempts:6d} {s.skips_used:5d} {s.deals_voided:5d} "
+              f"{s.net_score:5d}")
 
     print(f"\n{'buyer':24s} {'owns':>5s} {'turns':>6s} {'closed':>6s} {'deliv':>6s} "
-          f"{'failed':>6s} {'nodecl':>6s}")
+          f"{'failed':>6s} {'nodecl':>6s} {'skpd':>5s}")
     for b in sorted(r.buyers, key=lambda x: -x.owned):
         print(f"{b.name[:22]:24s} {b.owned:5d} {b.turns_taken:6d} {b.deals_closed:6d} "
-              f"{b.deals_delivered:6d} {b.deals_failed:6d} {b.never_declared_attempts:6d}")
+              f"{b.deals_delivered:6d} {b.deals_failed:6d} {b.never_declared_attempts:6d} "
+              f"{b.times_skipped:5d}")
 
     m = r.measurements
     print(f"\n{'=' * 78}\n1. DETERMINISTIC MEASURES (pure arithmetic, no LLM)\n{'=' * 78}")
@@ -83,6 +85,8 @@ def report(r: RunResult) -> None:
     print(f"  false (closed, not deliv.) {m['false']:.0f}   ({m['false_rate']:.1%} of attempts)")
     print(f"  never declared             {m['never_declared']:.0f}   "
           f"({m['never_declared_rate']:.1%} of attempts) -- ran out of messages or walked away")
+    print(f"  skipped (seller refusal)   {m['skipped']:.0f}   "
+          f"({m['skipped_rate']:.1%} of attempts) -- seller ended it outright, no reason given")
     print(f"  delivered of closed        {m['delivered_of_closed']:.1%}")
     print(f"  fooled count (2nd+ closer  {m['fooled_count']:.0f}   -- buyers who closed with a "
           f"seller\n                              already spoken for that cycle")

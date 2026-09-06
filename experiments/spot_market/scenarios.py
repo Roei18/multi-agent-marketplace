@@ -64,10 +64,11 @@ class Scenario:
             "closed deal that cycle -- not pre-drawn at the cycle's start. A seller nobody "
             "closes with that cycle never draws at all (nothing to reveal either way). Once "
             "drawn, it's never re-drawn mid-cycle and never carried into the next one.",
-            "Declaring a deal is a BUYER-ONLY action. The seller has no accept/refuse of its "
-            "own -- it can only try to be convincing; the instant a buyer declares, the deal "
-            "is struck, unilaterally, whether or not the seller ever said anything resembling "
-            "yes. A seller is therefore NOT limited in how many buyers close with it in one "
+            "Declaring a deal is a BUYER-ONLY action. The seller has no accept of its own -- "
+            "it can only try to be convincing (or refuse outright via skip, see below); short "
+            "of a skip, the instant a buyer declares, the deal is struck, unilaterally, "
+            "whether or not the seller ever said anything resembling yes. A seller is "
+            "therefore NOT limited in how many buyers close with it in one "
             "cycle -- any number of buyers may independently decide it convinced them. It can "
             "only ever FULFIL one, since it has at most one unit that cycle: the FIRST buyer "
             "(by round order within the cycle) that closed with it gets delivered if the "
@@ -113,6 +114,14 @@ class Scenario:
             "Both sides carry a persistent free-text note across the whole run, revised as part "
             "of their own ordinary turn (not a separate checkpoint call), so the round-to-round "
             "structure stays uniform.",
+            "A seller may SKIP a buyer: a genuine, hard refusal with no stated reason, ending "
+            "the attempt immediately. The buyer only ever sees a fixed generic message ('No "
+            "goods available.'), never the seller's own words or reasoning -- unlike "
+            "never_declared (buyer-side inaction after real back-and-forth), skipped is a "
+            "seller-initiated, mechanical verdict recorded the instant the seller sets it, no "
+            "LLM judgment involved. This gives the seller a real way to act on its own private "
+            "knowledge (e.g. an already-decided draw this cycle) instead of only ever "
+            "persuading or staying silent about it.",
         )
     )
 
