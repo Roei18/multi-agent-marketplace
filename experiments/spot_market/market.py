@@ -353,6 +353,7 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
         buyers[bid] = BuyerState(a)
 
     seller_order = list(sellers)
+    seller_names = {sid: st.agent.name for sid, st in sellers.items()}
     base_buyer_order = list(buyers)
     n_buyers = len(base_buyer_order)
 
@@ -395,7 +396,7 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                 if not available:
                     break
                 ch = await b.agent.choose(board=buyer_board, status=buyer_status,
-                                          tried=tried, sellers=seller_order)
+                                          tried=tried, sellers=seller_names)
                 sid = resolve_seller_id(ch.seller, sellers) or available[0]
                 tried.append(sid)
                 s = sellers[sid]

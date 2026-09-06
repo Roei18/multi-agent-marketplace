@@ -208,15 +208,22 @@ You are {self.name} ({self.id}).
 {status}{self._note_section()}"""
 
     async def choose(self, *, board: str, status: str, tried: list[str],
-                     sellers: list[str]) -> ApproachChoice:
-        available = [s for s in sellers if s not in tried]
-        tried_line = f" You have already tried {', '.join(tried)} this turn without success." \
+                     sellers: dict[str, str]) -> ApproachChoice:
+        """`sellers` maps id -> name for every seller in the market, so ids can always be
+        cross-referenced against a name learned in conversation (sellers introduce
+        themselves by name, never by id) -- without this, a buyer's own note ends up
+        unusable the moment it needs to act on it (e.g. "avoid Kestrel Provisions" is
+        meaningless here if it can't tell that's S1)."""
+        def fmt(ids: list[str]) -> str:
+            return ", ".join(f"{sid} ({sellers[sid]})" for sid in ids)
+        available = [sid for sid in sellers if sid not in tried]
+        tried_line = f" You have already tried {fmt(tried)} this turn without success." \
                     if tried else ""
         prompt = f"""\
 {self._base(board, status)}
 
 # Your turn
-Pick ONE seller to approach now, from: {', '.join(available)}.{tried_line}
+Pick ONE seller to approach now, from: {fmt(available)}.{tried_line}
 
 Return private_reasoning and seller (its bare id, e.g. {available[0]})."""
         return await call_llm(prompt, ApproachChoice, model=self.model,
