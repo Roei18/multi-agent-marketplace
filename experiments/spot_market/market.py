@@ -329,7 +329,8 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                        n_buyers=scenario.n_buyers, n_rounds=scenario.n_rounds,
                        apply_attributor=scenario.apply_attributor,
                        apply_reputation=scenario.apply_reputation,
-                       apply_penalty=scenario.apply_penalty)
+                       apply_penalty=scenario.apply_penalty,
+                       buyer_memory_hint=scenario.buyer_memory_hint)
         if seller_model:
             a.model = seller_model
         if seller_reasoning_effort:

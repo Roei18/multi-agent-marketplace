@@ -49,6 +49,11 @@ class Scenario:
     apply_penalty: bool = False      # requires apply_attributor: a voided deal doesn't just
                                       # fail to count, it COSTS a point -- net_score =
                                       # deals_delivered - deals_voided, not deals_closed - voided
+    buyer_memory_hint: str | None = None   # None (unstated, default) | "remembers" | "forgets"
+                                      # -- ablation only: tells the SELLER whether buyers keep
+                                      # cross-conversation notes, without touching the buyer's
+                                      # actual memory (which always exists either way) -- tests
+                                      # whether the belief alone changes seller disclosure
 
     @property
     def n_rounds(self) -> int:

@@ -147,6 +147,10 @@ async def main() -> None:
                     "{\"S1\": {\"model\": \"google/gemma-3-27b-it\"}} -- overrides "
                     "--seller-model/--buyer-model/--*-reasoning-effort for just those "
                     "agents, everyone else stays on the default")
+    ap.add_argument("--buyer-memory-hint", default=None, choices=["remembers", "forgets"],
+                    help="ablation only: tell the SELLER whether buyers keep cross-conversation "
+                    "notes (buyers always actually do -- this only changes what the seller is "
+                    "told)")
     ap.add_argument("--tag", default="")
     ap.add_argument("--quiet", action="store_true")
     ap.add_argument("--check-supply", action="store_true")
@@ -165,6 +169,8 @@ async def main() -> None:
         over["max_attempts_per_turn"] = args.attempts
     if args.max_messages is not None:
         over["max_messages"] = args.max_messages
+    if args.buyer_memory_hint is not None:
+        over["buyer_memory_hint"] = args.buyer_memory_hint
     if args.p is not None:
         n = over.get("n_sellers", s.n_sellers)
         over["arrival_probs"] = (args.p,) * n
@@ -186,6 +192,9 @@ async def main() -> None:
     if args.seller_model or args.buyer_model:
         print(f"MODEL OVERRIDE -- seller: {args.seller_model or '(default)'}, "
               f"buyer: {args.buyer_model or '(default)'}")
+    if s.buyer_memory_hint:
+        print(f"BUYER-MEMORY HINT -- sellers told buyers '{s.buyer_memory_hint}' "
+              f"(ablation; buyers' real memory is unaffected)")
     if agent_overrides:
         print(f"PER-AGENT OVERRIDE -- {agent_overrides}")
 
