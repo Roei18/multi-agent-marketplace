@@ -344,7 +344,8 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
     buyers: dict[str, BuyerState] = {}
     for bid, name in BUYERS[:scenario.n_buyers]:
         a = BuyerAgent(bid, name, n_sellers=scenario.n_sellers, n_buyers=scenario.n_buyers,
-                      n_rounds=scenario.n_rounds, apply_reputation=scenario.apply_reputation)
+                      n_rounds=scenario.n_rounds, apply_reputation=scenario.apply_reputation,
+                      no_notes=scenario.buyer_no_notes)
         if buyer_model:
             a.model = buyer_model
         if buyer_reasoning_effort:

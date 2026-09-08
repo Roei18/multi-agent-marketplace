@@ -54,6 +54,9 @@ class Scenario:
                                       # cross-conversation notes, without touching the buyer's
                                       # actual memory (which always exists either way) -- tests
                                       # whether the belief alone changes seller disclosure
+    buyer_no_notes: bool = False     # ablation: buyers genuinely have NO persistent note --
+                                      # the public board is the only thing that ever carries
+                                      # across attempts/rounds for them. Sellers unaffected.
 
     @property
     def n_rounds(self) -> int:

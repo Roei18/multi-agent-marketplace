@@ -210,15 +210,19 @@ skip, and continue_conversation."""
 
 class BuyerAgent:
     def __init__(self, bid: str, name: str, *, n_sellers: int, n_buyers: int, n_rounds: int,
-                apply_reputation: bool = False):
+                apply_reputation: bool = False, no_notes: bool = False):
         self.id, self.name = bid, name
         self.n_sellers, self.n_buyers, self.n_rounds = n_sellers, n_buyers, n_rounds
         self.apply_reputation = apply_reputation
+        self.no_notes = no_notes    # ablation: no persistent memory at all -- the public
+                                     # board is the only thing that carries across attempts
         self.model: str | None = None
         self.reasoning_effort: str | int | None = None
         self.note: str = ""
 
     def _note_section(self) -> str:
+        if self.no_notes:
+            return ""
         text = self.note.strip() or "(none yet -- this is your first turn)"
         return f"\n\n# Your note (written by you; carries forward until you revise it)\n{text}"
 
@@ -268,6 +272,10 @@ Return private_reasoning and seller (its bare id, e.g. {available[0]})."""
                   f"deal, unless you declare first.")
         history = "\n".join(f"{'You' if m.speaker == self.id else seller_name}: {m.message}"
                             for m in messages) or "(nothing said yet)"
+        return_fields = ("private_reasoning (never seen by them), message, declare_deal, "
+                        "and continue_conversation" if self.no_notes else
+                        "private_reasoning (never seen by them), updated_note, message, "
+                        "declare_deal, and continue_conversation")
         prompt = f"""\
 {self._base(board, status)}
 
@@ -277,11 +285,11 @@ Return private_reasoning and seller (its bare id, e.g. {available[0]})."""
 {DECLARE_BUYER}
 {history}
 
-It is your turn. Return private_reasoning (never seen by them), updated_note, message, \
-declare_deal, and continue_conversation."""
+It is your turn. Return {return_fields}."""
         t: BuyerTurn = await call_llm(prompt, BuyerTurn, model=self.model,
                                       reasoning_effort=self.reasoning_effort)
-        self.note = t.updated_note
+        if not self.no_notes:
+            self.note = t.updated_note
         return Utterance(speaker=self.id, private_reasoning=t.private_reasoning,
                          message=t.message, declare_deal=t.declare_deal,
                          continue_conversation=t.continue_conversation)

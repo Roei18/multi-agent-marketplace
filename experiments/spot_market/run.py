@@ -151,6 +151,9 @@ async def main() -> None:
                     help="ablation only: tell the SELLER whether buyers keep cross-conversation "
                     "notes (buyers always actually do -- this only changes what the seller is "
                     "told)")
+    ap.add_argument("--buyer-no-notes", action="store_true",
+                    help="ablation: buyers genuinely have no persistent note -- only the "
+                    "public board carries across attempts/rounds for them. Sellers unaffected.")
     ap.add_argument("--tag", default="")
     ap.add_argument("--quiet", action="store_true")
     ap.add_argument("--check-supply", action="store_true")
@@ -171,6 +174,8 @@ async def main() -> None:
         over["max_messages"] = args.max_messages
     if args.buyer_memory_hint is not None:
         over["buyer_memory_hint"] = args.buyer_memory_hint
+    if args.buyer_no_notes:
+        over["buyer_no_notes"] = True
     if args.p is not None:
         n = over.get("n_sellers", s.n_sellers)
         over["arrival_probs"] = (args.p,) * n
