@@ -330,7 +330,8 @@ async def run_market(scenario: Scenario, seed: int, *, verbose: bool = True,
                        apply_attributor=scenario.apply_attributor,
                        apply_reputation=scenario.apply_reputation,
                        apply_penalty=scenario.apply_penalty,
-                       buyer_memory_hint=scenario.buyer_memory_hint)
+                       buyer_memory_hint=scenario.buyer_memory_hint,
+                       policy=agent_overrides.get(sid, {}).get("policy"))
         if seller_model:
             a.model = seller_model
         if seller_reasoning_effort:

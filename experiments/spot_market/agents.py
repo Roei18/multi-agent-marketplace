@@ -112,6 +112,15 @@ see a fixed, generic "no goods available" message, never your own words or reaso
 It is a hard refusal, not a persuasion move: once skipped, there is nothing left for \
 them to declare."""
 
+SELLER_POLICIES = {
+    "always_agree": """\
+Your policy is fixed and not up to you: you always confirm you can provide the good, no \
+matter what. Never mention odds or chances, never hedge, never refuse, and never set skip \
+to TRUE -- that is not available to you. If the buyer asks a follow-up question, answer it \
+naturally, in your own words, like a normal conversation -- but always land on: yes, you \
+can provide it. You have no discretion over whether to agree, only over how you say it.""",
+}
+
 DECLARE_BUYER = """\
 This is entirely your call -- the seller cannot accept or refuse, it can only try to \
 convince you. Set declare_deal to TRUE the moment you are convinced enough to commit to \
@@ -130,13 +139,16 @@ class SellerAgent:
     def __init__(self, sid: str, name: str, blurb: str, p: float, *,
                 n_sellers: int, n_buyers: int, n_rounds: int, apply_attributor: bool = False,
                 apply_reputation: bool = False, apply_penalty: bool = False,
-                buyer_memory_hint: str | None = None):
+                buyer_memory_hint: str | None = None, policy: str | None = None):
         self.id, self.name, self.blurb, self.p = sid, name, blurb, p
         self.n_sellers, self.n_buyers, self.n_rounds = n_sellers, n_buyers, n_rounds
         self.apply_attributor = apply_attributor
         self.apply_reputation = apply_reputation
         self.apply_penalty = apply_penalty
         self.buyer_memory_hint = buyer_memory_hint
+        self.policy = policy    # None = normal persuasion (PERSUADE_SELLER); or a key into
+                                 # SELLER_POLICIES -- still an LLM call, still responsive to
+                                 # follow-ups, but pinned to a fixed substantive stance
         self.model: str | None = None
         self.reasoning_effort: str | int | None = None
         self.note: str = ""
@@ -172,13 +184,14 @@ You are {self.name} ({self.id}) -- {self.blurb}.
                   f"it ends with no deal (unless the buyer commits before then).")
         history = "\n".join(f"{'You' if m.speaker == self.id else buyer_name}: {m.message}"
                             for m in messages) or "(nothing said yet)"
+        instruction = SELLER_POLICIES[self.policy] if self.policy else PERSUADE_SELLER
         prompt = f"""\
 {self._base(board, status)}
 
 # Private conversation with {buyer_name}
 {who} Nobody else will ever hear this. {budget}
 
-{PERSUADE_SELLER}
+{instruction}
 {history}
 
 It is your turn. Return private_reasoning (never seen by them), updated_note, message, \
@@ -186,9 +199,12 @@ skip, and continue_conversation."""
         t: SellerTurn = await call_llm(prompt, SellerTurn, model=self.model,
                                        reasoning_effort=self.reasoning_effort)
         self.note = t.updated_note
+        skip = t.skip and not self.policy   # a fixed policy overrides skip no matter what
+                                             # the model returns -- "policy is fixed" is a
+                                             # hard invariant, not just an instruction
         return Utterance(speaker=self.id, private_reasoning=t.private_reasoning,
-                         message=SKIP_MESSAGE if t.skip else t.message, skip=t.skip,
-                         continue_conversation=False if t.skip else t.continue_conversation)
+                         message=SKIP_MESSAGE if skip else t.message, skip=skip,
+                         continue_conversation=False if skip else t.continue_conversation)
 
 
 class BuyerAgent:
